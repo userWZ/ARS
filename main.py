@@ -452,132 +452,153 @@ def restore(file):
                 result.append(shortest_path_result)
         processed.append(prev_gen)
 
-        # Opening switches based on Lowest Impedence First and lowest cranking power
-        # Gen1 is the black start
-        black_start = 0
-        # Filtering the data based on condition that source generator is 1. Since we have to process from gen1
-        conditions = {'source_gen': 0}
-        bs_result = [one_dict for one_dict in result if all(key in one_dict and conditions[key] == one_dict[key]
-                                                            for key in conditions.keys())]
-        # Sort the filtered data on Impedance and cranking power in ascending order
-        # bs_result_sorted = sorted(bs_result, key = lambda i: (i['imp'],i['c_pow']))
-        bs_result_sorted = sorted(bs_result, key=lambda i: (i['imp']))
-        path = []
-        total_imp = 0
-        for eachrow in bs_result_sorted:
-            path.append(eachrow['dest_gen'])
-            total_imp = total_imp + eachrow['imp']
-        short_path['path'] = path
-        short_path['total_imp'] = total_imp
-        net.switch['closed'] = False
-        net.gen['in_service'] = False
-        filecount = 0
+    # Opening switches based on Lowest Impedence First and lowest cranking power
+    # Gen1 is the black start
+    black_start = 0
+    # Filtering the data based on condition that source generator is 1. Since we have to process from gen1
+    conditions = {'source_gen': 0}
+    bs_result = [one_dict for one_dict in result if all(key in one_dict and conditions[key] == one_dict[key]
+                                                        for key in conditions.keys())]
+    # Sort the filtered data on Impedance and cranking power in ascending order
+    # bs_result_sorted = sorted(bs_result, key = lambda i: (i['imp'],i['c_pow']))
+    bs_result_sorted = sorted(bs_result, key=lambda i: (i['imp']))
+    path = []
+    total_imp = 0
+    for eachrow in bs_result_sorted:
+        path.append(eachrow['dest_gen'])
+        total_imp = total_imp + eachrow['imp']
+    short_path['path'] = path
+    short_path['total_imp'] = total_imp
+    net.switch['closed'] = False
+    net.gen['in_service'] = False
+    filecount = 0
 
-        ####### Looping Swith Logic to be added ##########
-        # Loop on filtered data where source generator is 0
-        # for eachrow in bs_result_sorted:
-        # Get the shortest path between two generators
-        net.gen.loc[net.gen['bus'] == ext_grid_bus, 'in_service'] = True
-        net.gen.loc[net.gen['bus'] == ext_grid_bus, 'slack'] = True
-        slack_vm_pu = net.gen.loc[net.gen['slack'] == True, 'vm_pu']
-        net.load.in_service = False
-        processed_bus = []
-        inrush_bus = []
-        load_temp = net.load.copy()
-        indexnames = None
-        picked_load1 = 0
-        picked_load2 = 0
-        available_gen = pd.DataFrame(columns=net.gen.columns.values)
-        unprocessed_temp = []
-        avail_list_gen = []
+    ####### Looping Swith Logic to be added ##########
+    # Loop on filtered data where source generator is 0
+    # for eachrow in bs_result_sorted:
+    # Get the shortest path between two generators
+    net.gen.loc[net.gen['bus'] == ext_grid_bus, 'in_service'] = True
+    net.gen.loc[net.gen['bus'] == ext_grid_bus, 'slack'] = True
+    slack_vm_pu = net.gen.loc[net.gen['slack'] == True, 'vm_pu']
+    net.load.in_service = False
+    processed_bus = []
+    inrush_bus = []
+    load_temp = net.load.copy()
+    indexnames = None
+    picked_load1 = 0
+    picked_load2 = 0
+    available_gen = pd.DataFrame(columns=net.gen.columns.values)
+    unprocessed_temp = []
+    avail_list_gen = []
 
-        unprocessed_gen = cp.deepcopy(net.gen)
-        for index, row in unprocessed_gen.iterrows():
-            if math.isnan(row['sn_mva']):
-                row['q'] = 0
-            else:
-                row['q'] = pd.eval(np.sqrt(row['sn_mva'] ** 2 - row['p_mw'] ** 2))
+    unprocessed_gen = cp.deepcopy(net.gen)
+    for index, row in unprocessed_gen.iterrows():
+        if math.isnan(row['sn_mva']):
+            row['q'] = 0
+        else:
+            row['q'] = pd.eval(np.sqrt(row['sn_mva'] ** 2 - row['p_mw'] ** 2))
 
-        cond = unprocessed_gen['name'].isin(available_gen['name'])
-        unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
-        unprocessed_load = cp.deepcopy(net.load)
-        not_completed_load = cp.deepcopy(net.load)
-        net_copy = pp.create_empty_network()
-        net_copy = cp.deepcopy(net)
-        iteration = float(0)
-        rest_output = []
-        current_load_processed = False
-        current_gen = None
-        next_gen = None
-        rest_col_names = ['iteration', 'gen_turned_on', 'eff_gen_cap_p', 'eff_gen_cap_q', 'cranking_power_provided_gen',
-                          'cranking_power_p', 'cranking_power_q', 'Load_Name', 'motor_gr oup', 'pli_mw', 'qli_mvar',
-                          'p_mw',
-                          'q_mw', 'lp_mw', 'lq_mvar', 'pr_mw', 'qr_mvar', 'Voltage_Drop', 'Voltage_Drop_steady']
-        for eachrow in bs_result_sorted:
-            restoration_path = eachrow.get('path')
-            for rest_var in range(0, len(restoration_path)):
-                if restoration_path[rest_var] not in list(available_gen.bus):
-                    current_gen = restoration_path[rest_var]
-                    if rest_var < len(restoration_path) - 1:
-                        next_gen = restoration_path[rest_var + 1]
-                    else:
-                        next_gen = None
+    cond = unprocessed_gen['name'].isin(available_gen['name'])
+    unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
+    unprocessed_load = cp.deepcopy(net.load)
+    not_completed_load = cp.deepcopy(net.load)
+    net_copy = pp.create_empty_network()
+    net_copy = cp.deepcopy(net)
+    iteration = float(0)
+    rest_output = []
+    current_load_processed = False
+    current_gen = None
+    next_gen = None
+    rest_col_names = ['iteration', 'gen_turned_on', 'eff_gen_cap_p', 'eff_gen_cap_q', 'cranking_power_provided_gen',
+                      'cranking_power_p', 'cranking_power_q', 'Load_Name', 'motor_gr oup', 'pli_mw', 'qli_mvar',
+                      'p_mw',
+                      'q_mw', 'lp_mw', 'lq_mvar', 'pr_mw', 'qr_mvar', 'Voltage_Drop', 'Voltage_Drop_steady']
+    for eachrow in bs_result_sorted:
+        restoration_path = eachrow.get('path')
+        for rest_var in range(0, len(restoration_path)):
+            if restoration_path[rest_var] not in list(available_gen.bus):
+                current_gen = restoration_path[rest_var]
+                if rest_var < len(restoration_path) - 1:
+                    next_gen = restoration_path[rest_var + 1]
+                else:
+                    next_gen = None
 
-                    if next_gen is None:
-                        sp = short_path['path']
-                        if sp.index(current_gen) < len(sp) - 1:
-                            if black_start == sp[sp.index(current_gen) + 1]:
-                                next_gen = sp[sp.index(current_gen) + 2]
-                            else:
-                                next_gen = sp[sp.index(current_gen) + 1]
-                    net_copy.gen.loc[net.gen['bus'] == current_gen, 'in_service'] = True
-                    available_gen = available_gen.append(net_copy.gen.loc[net.gen['bus'] == current_gen], sort=True)
-                    available_gen['q'] = pd.eval(np.sqrt(available_gen['sn_mva'] ** 2 - available_gen['p_mw'] ** 2))
-                    cond = unprocessed_gen['name'].isin(available_gen['name'])
-                    unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
-                    gen_capacity = float(0)
-                    gen_capacity_q = float(0)
-                    cranking_power = None
-                    cranking_power_q = None
-
-                    # Calculate Available generation capacity, processed load and effective generation capability
-                    gen_capacity = gen_capacity + abs(available_gen['p_mw'].sum())
-                    gen_capacity_q = gen_capacity_q + abs(available_gen['q'].sum())
-                    cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
-                    cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
-
-                    try:
-                        processed_load_steadystate_p = static_data.query("processed == 'Y'")['p'].sum()
-                        processed_load_steadystate_q = static_data.query("processed == 'Y'")['q'].sum()
-                    except IndexError:
-                        processed_load_steadystate_p = 0
-                        processed_load_steadystate_q = 0
-                    try:
-                        processed_load_steadystate_mot_p = sorted_motor.query("processed == 'Y'")['p_total'].sum()
-                        processed_load_steadystate_mot_q = sorted_motor.query("processed == 'Y'")['q_total'].sum()
-                    except IndexError:
-                        processed_load_steadystate_mot_p = 0
-                        processed_load_steadystate_mot_q = 0
-
-                    eff_gen_cap = gen_capacity - cranking_power - processed_load_steadystate_p - processed_load_steadystate_mot_p
-                    eff_gen_cap_q = gen_capacity_q - cranking_power_q - processed_load_steadystate_q - processed_load_steadystate_mot_q
-                    load_processed = False
-                    current_load_completed = False
-                    insufficient_capacity = False
-                    for l_index, l_row in load_priority.iterrows():
-                        if insufficient_capacity == False:
-                            current_load = l_row['load_bus']
+                if next_gen is None:
+                    sp = short_path['path']
+                    if sp.index(current_gen) < len(sp) - 1:
+                        if black_start == sp[sp.index(current_gen) + 1]:
+                            next_gen = sp[sp.index(current_gen) + 2]
                         else:
-                            break
-                        for eachload_paths in gen_load_all_paths:
-                            if ((available_gen[available_gen['bus'] == eachload_paths.get('gen')].any().any())
-                                    & (eachload_paths.get('bus') == current_load)):
-                                all_paths_arr = eachload_paths.get('all_paths')
-                                valid_path = []
-                                unprocessed_gen_set = set(unprocessed_gen['bus'])
-                                unprocessed_load_set = set(unprocessed_load['bus'])
-                                trans_hv = set(net_copy.trafo['hv_bus'])
-                                trans_lv = set(net_copy.trafo['lv_bus'])
+                            next_gen = sp[sp.index(current_gen) + 1]
+                net_copy.gen.loc[net.gen['bus'] == current_gen, 'in_service'] = True
+                available_gen = available_gen.append(net_copy.gen.loc[net.gen['bus'] == current_gen], sort=True)
+                available_gen['q'] = pd.eval(np.sqrt(available_gen['sn_mva'] ** 2 - available_gen['p_mw'] ** 2))
+                cond = unprocessed_gen['name'].isin(available_gen['name'])
+                unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
+                gen_capacity = float(0)
+                gen_capacity_q = float(0)
+                cranking_power = None
+                cranking_power_q = None
+
+                # Calculate Available generation capacity, processed load and effective generation capability
+                gen_capacity = gen_capacity + abs(available_gen['p_mw'].sum())
+                gen_capacity_q = gen_capacity_q + abs(available_gen['q'].sum())
+                cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
+                cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
+
+                try:
+                    processed_load_steadystate_p = static_data.query("processed == 'Y'")['p'].sum()
+                    processed_load_steadystate_q = static_data.query("processed == 'Y'")['q'].sum()
+                except IndexError:
+                    processed_load_steadystate_p = 0
+                    processed_load_steadystate_q = 0
+                try:
+                    processed_load_steadystate_mot_p = sorted_motor.query("processed == 'Y'")['p_total'].sum()
+                    processed_load_steadystate_mot_q = sorted_motor.query("processed == 'Y'")['q_total'].sum()
+                except IndexError:
+                    processed_load_steadystate_mot_p = 0
+                    processed_load_steadystate_mot_q = 0
+
+                eff_gen_cap = gen_capacity - cranking_power - processed_load_steadystate_p - processed_load_steadystate_mot_p
+                eff_gen_cap_q = gen_capacity_q - cranking_power_q - processed_load_steadystate_q - processed_load_steadystate_mot_q
+                load_processed = False
+                current_load_completed = False
+                insufficient_capacity = False
+                for l_index, l_row in load_priority.iterrows():
+                    if insufficient_capacity == False:
+                        current_load = l_row['load_bus']
+                    else:
+                        break
+                    for eachload_paths in gen_load_all_paths:
+                        if ((available_gen[available_gen['bus'] == eachload_paths.get('gen')].any().any())
+                                & (eachload_paths.get('bus') == current_load)):
+                            all_paths_arr = eachload_paths.get('all_paths')
+                            valid_path = []
+                            unprocessed_gen_set = set(unprocessed_gen['bus'])
+                            unprocessed_load_set = set(unprocessed_load['bus'])
+                            trans_hv = set(net_copy.trafo['hv_bus'])
+                            trans_lv = set(net_copy.trafo['lv_bus'])
+                            for i in range(0, len(all_paths_arr)):
+                                valid_path_flag = True
+                                single_path = all_paths_arr[i]
+                                single_path_set = set(single_path)
+                                single_path_set_load = set(single_path[:-1])
+                                if unprocessed_gen_set.intersection(single_path_set):
+                                    valid_path_flag = False
+                                if valid_path_flag:
+                                    if unprocessed_load_set.intersection(single_path_set_load):
+                                        valid_path_flag = False
+                                if valid_path_flag:
+                                    if trans_hv.intersection(single_path_set):
+                                        valid_path_flag = False
+                                if trans_lv.intersection(single_path_set):
+                                    valid_path_flag = False
+
+                                if valid_path_flag == True:
+                                    valid_path = all_paths_arr[i]
+                                    break
+
+                            if valid_path_flag == False:
                                 for i in range(0, len(all_paths_arr)):
                                     valid_path_flag = True
                                     single_path = all_paths_arr[i]
@@ -585,181 +606,161 @@ def restore(file):
                                     single_path_set_load = set(single_path[:-1])
                                     if unprocessed_gen_set.intersection(single_path_set):
                                         valid_path_flag = False
-                                    if valid_path_flag:
+                                    if valid_path_flag == True:
                                         if unprocessed_load_set.intersection(single_path_set_load):
                                             valid_path_flag = False
-                                    if valid_path_flag:
-                                        if trans_hv.intersection(single_path_set):
-                                            valid_path_flag = False
-                                    if trans_lv.intersection(single_path_set):
-                                        valid_path_flag = False
-
+                                    if valid_path_flag == True:
+                                        for j in range(0, len(single_path) - 1):
+                                            if (net_copy.trafo.loc[
+                                                (net_copy.trafo.hv_bus == single_path[j]) &
+                                                (net_copy.trafo.lv_bus == single_path[j + 1]) &
+                                                (net_copy.trafo.tap_side == 'hv')].any().any()
+                                                    or
+                                                    net_copy.trafo.loc[
+                                                        (net_copy.trafo.hv_bus == single_path[j + 1]) &
+                                                        (net_copy.trafo.lv_bus == single_path[j]) &
+                                                        (net_copy.trafo.tap_side == 'lv')].any().any()):
+                                                valid_path_flag = False
+                                                break
                                     if valid_path_flag == True:
                                         valid_path = all_paths_arr[i]
                                         break
 
-                                if valid_path_flag == False:
-                                    for i in range(0, len(all_paths_arr)):
-                                        valid_path_flag = True
-                                        single_path = all_paths_arr[i]
-                                        single_path_set = set(single_path)
-                                        single_path_set_load = set(single_path[:-1])
-                                        if unprocessed_gen_set.intersection(single_path_set):
-                                            valid_path_flag = False
-                                        if valid_path_flag == True:
-                                            if unprocessed_load_set.intersection(single_path_set_load):
-                                                valid_path_flag = False
-                                        if valid_path_flag == True:
-                                            for j in range(0, len(single_path) - 1):
-                                                if (net_copy.trafo.loc[
-                                                    (net_copy.trafo.hv_bus == single_path[j]) &
-                                                    (net_copy.trafo.lv_bus == single_path[j + 1]) &
-                                                    (net_copy.trafo.tap_side == 'hv')].any().any()
-                                                        or
-                                                        net_copy.trafo.loc[
-                                                            (net_copy.trafo.hv_bus == single_path[j + 1]) &
-                                                            (net_copy.trafo.lv_bus == single_path[j]) &
-                                                            (net_copy.trafo.tap_side == 'lv')].any().any()):
-                                                    valid_path_flag = False
-                                                    break
-                                        if valid_path_flag == True:
-                                            valid_path = all_paths_arr[i]
-                                            break
+                            if valid_path_flag == False:
+                                continue
 
-                                if valid_path_flag == False:
-                                    continue
+                            if valid_path_flag == True:
+                                for i in range(0, len(valid_path) - 1):
+                                    if (valid_path[i] is not None) & (valid_path[i + 1] is not None):
+                                        line_bw_buses = net_copy.line.loc[(net_copy.line['from_bus'] ==
+                                                                           valid_path[i]) & (
+                                                                                  net_copy.line['to_bus'] ==
+                                                                                  valid_path[i + 1])]
+                                        if len(line_bw_buses) == 0:
+                                            line_bw_buses = net_copy.line.loc[
+                                                (net_copy.line['from_bus'] == valid_path[i + 1]) & (
+                                                        net_copy.line['to_bus'] == valid_path[i])]
+                                        if len(line_bw_buses) > 0:
+                                            net_copy.switch.loc[
+                                                (net_copy.switch['element'] == line_bw_buses.index[0]) &
+                                                (net_copy.switch['et'] == 'l'), 'closed'] = True
+                                        trafo_bw_buses = net_copy.trafo.loc[(net_copy.trafo['hv_bus'] ==
+                                                                             valid_path[i]) &
+                                                                            (net_copy.trafo['lv_bus'] == valid_path[
+                                                                                i + 1])]
+                                        if len(trafo_bw_buses) == 0:
+                                            trafo_bw_buses = net_copy.trafo.loc[
+                                                (net_copy.trafo['lv_bus'] == valid_path[i]) &
+                                                (net_copy.trafo['hv_bus'] == valid_path[i + 1])]
+                                        if len(trafo_bw_buses) > 0:
+                                            net_copy.switch.loc[
+                                                (net_copy.switch['element'] == int(trafo_bw_buses.index[0])) &
+                                                (net_copy.switch['et'] == 't'), 'closed'] = True
+                                        temp_trafo_switch = net_copy.trafo.loc[
+                                            net_copy.trafo.hv_bus == valid_path[i]]
 
-                                if valid_path_flag == True:
-                                    for i in range(0, len(valid_path) - 1):
-                                        if (valid_path[i] is not None) & (valid_path[i + 1] is not None):
-                                            line_bw_buses = net_copy.line.loc[(net_copy.line['from_bus'] ==
-                                                                               valid_path[i]) & (
-                                                                                      net_copy.line['to_bus'] ==
-                                                                                      valid_path[i + 1])]
-                                            if len(line_bw_buses) == 0:
-                                                line_bw_buses = net_copy.line.loc[
-                                                    (net_copy.line['from_bus'] == valid_path[i + 1]) & (
-                                                            net_copy.line['to_bus'] == valid_path[i])]
-                                            if len(line_bw_buses) > 0:
-                                                net_copy.switch.loc[
-                                                    (net_copy.switch['element'] == line_bw_buses.index[0]) &
-                                                    (net_copy.switch['et'] == 'l'), 'closed'] = True
-                                            trafo_bw_buses = net_copy.trafo.loc[(net_copy.trafo['hv_bus'] ==
-                                                                                 valid_path[i]) &
-                                                                                (net_copy.trafo['lv_bus'] == valid_path[
-                                                                                    i + 1])]
-                                            if len(trafo_bw_buses) == 0:
-                                                trafo_bw_buses = net_copy.trafo.loc[
-                                                    (net_copy.trafo['lv_bus'] == valid_path[i]) &
-                                                    (net_copy.trafo['hv_bus'] == valid_path[i + 1])]
-                                            if len(trafo_bw_buses) > 0:
-                                                net_copy.switch.loc[
-                                                    (net_copy.switch['element'] == int(trafo_bw_buses.index[0])) &
-                                                    (net_copy.switch['et'] == 't'), 'closed'] = True
-                                            temp_trafo_switch = net_copy.trafo.loc[
-                                                net_copy.trafo.hv_bus == valid_path[i]]
+                                        if len(temp_trafo_switch) == 0: temp_trafo_switch = net_copy.trafo.loc[
+                                            net_copy.trafo.lv_bus == valid_path[i]]
+                                        if len(temp_trafo_switch) > 0:
+                                            for ts_iter, ts_row in temp_trafo_switch.iterrows():
+                                                if ts_row['hv_bus'] == valid_path[i] and \
+                                                        net_copy.load.loc[
+                                                            (net_copy.load.bus == ts_row['lv_bus']) & (
+                                                                    net_copy.load.in_service == True)].any().any():
+                                                    trans_index = net_copy.trafo.loc[
+                                                        (net_copy.trafo.hv_bus == ts_row['hv_bus']) &
+                                                        (net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
+                                                    net_copy.switch.loc[
+                                                        (net_copy.switch['element'] == trans_index[0]) & (
+                                                                    net_copy.switch['et'] == 't'), 'closed'] = True
+                                                elif (ts_row['lv_bus'] == valid_path[i]) and (net_copy.load.loc[
+                                            (net_copy.load.bus == ts_row['hv_bus']) & (net_copy.load.in_service ==
+                                                                                       True)].any().any()):
+                                                    trans_index = net_copy.trafo.loc[
+                                                        (net_copy.trafo.hv_bus == ts_row['hv_bus']) & (
+                                                                    net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
+                                                    net_copy.switch.loc[
+                                                        (net_copy.switch['element'] == trans_index[0]) & (
+                                                                    net_copy.switch['et'] == 't'), 'closed'] = True
+                                unprocessed_load.drop(
+                                    unprocessed_load[unprocessed_load['bus'] == int(current_load)].index, inplace=True)
+                                try:
+                                    motor = sorted_motor[
+                                        (sorted_motor.load_bus ==int(current_load)) &
+                                        (sorted_motor.processed == 'N') &
+                                        (sorted_motor.p_inrush_tot < eff_gen_cap) &
+                                        (sorted_motor.q_inrush_tot < eff_gen_cap_q)].iloc[0]
+                                except IndexError:
+                                    motor = None
+                                except TypeError:
+                                    motor = None
+                                    print("test")
+                                while 1 == 1:
+                                    static = None
+                                    motor = None
+                                    try:
+                                        static = static_data[(static_data.load_bus == int(current_load)) & (
+                                                    static_data.processed == 'N')].iloc[0]
+                                    except IndexError:
+                                        static = None
+                                    except TypeError:
+                                        static = None
+                                    if static is not None:
+                                        static_p = static['p']
+                                        static_q = static['q']
+                                    else:
+                                        static_p = 0
+                                        static_q = 0
 
-                                            if len(temp_trafo_switch) == 0: temp_trafo_switch = net_copy.trafo.loc[
-                                                net_copy.trafo.lv_bus == valid_path[i]]
-                                            if len(temp_trafo_switch) > 0:
-                                                for ts_iter, ts_row in temp_trafo_switch.iterrows():
-                                                    if ts_row['hv_bus'] == valid_path[i] and \
-                                                            net_copy.load.loc[
-                                                                (net_copy.load.bus == ts_row['lv_bus']) & (
-                                                                        net_copy.load.in_service == True)].any().any():
-                                                        trans_index = net_copy.trafo.loc[
-                                                            (net_copy.trafo.hv_bus == ts_row['hv_bus']) &
-                                                            (net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
-                                                        net_copy.switch.loc[
-                                                            (net_copy.switch['element'] == trans_index[0]) & (
-                                                                        net_copy.switch['et'] == 't'), 'closed'] = True
-                                                    elif (ts_row['lv_bus'] == valid_path[i]) and (net_copy.load.loc[
-                                                (net_copy.load.bus == ts_row['hv_bus']) & (net_copy.load.in_service ==
-                                                                                           True)].any().any()):
-                                                        trans_index = net_copy.trafo.loc[
-                                                            (net_copy.trafo.hv_bus == ts_row['hv_bus']) & (
-                                                                        net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
-                                                        net_copy.switch.loc[
-                                                            (net_copy.switch['element'] == trans_index[0]) & (
-                                                                        net_copy.switch['et'] == 't'), 'closed'] = True
-                                    unprocessed_load.drop(
-                                        unprocessed_load[unprocessed_load['bus'] == int(current_load)].index, inplace=True)
                                     try:
                                         motor = sorted_motor[
-                                            (sorted_motor.load_bus ==int(current_load)) &
+                                            (sorted_motor.load_bus == int(current_load)) &
                                             (sorted_motor.processed == 'N') &
-                                            (sorted_motor.p_inrush_tot < eff_gen_cap) &
-                                            (sorted_motor.q_inrush_tot < eff_gen_cap_q)].iloc[0]
+                                            (np.floor(sorted_motor.p_inrush_tot + static_p) + 5 < math.ceil(eff_gen_cap)) &
+                                            (np.floor(sorted_motor.q_inrush_tot + static_q) + 5 <math.ceil(eff_gen_cap_q))].iloc[0]
                                     except IndexError:
                                         motor = None
                                     except TypeError:
                                         motor = None
-                                        print("test")
-                                    while 1 == 1:
-                                        static = None
-                                        motor = None
-                                        try:
-                                            static = static_data[(static_data.load_bus == int(current_load)) & (
-                                                        static_data.processed == 'N')].iloc[0]
-                                        except IndexError:
-                                            static = None
-                                        except TypeError:
-                                            static = None
-                                        if static is not None:
-                                            static_p = static['p']
-                                            static_q = static['q']
-                                        else:
-                                            static_p = 0
-                                            static_q = 0
+                                    if motor is not None:
+                                        net_copy.load.loc[(net_copy.load['bus'] == current_load), 'in_service'] = True
+                                        print(iteration)
+                                        picked_total_load1 = motor['p_inrush_tot'] + static_p
+                                        picked_total_load1_q = motor['q_inrush_tot'] + static_q
+                                        net_copy.load.loc[(net_copy.load['bus'] == int(
+                                            current_load)), 'p_mw'] = picked_total_load1 + sum(
+                                            sorted_motor.loc[(sorted_motor.load_bus ==
+                                                              int(current_load)) & (sorted_motor.processed == 'Y'), 'p_total'])
+                                        net_copy.load.loc[(net_copy.load['bus'] == int(
+                                            current_load)), 'q_mvar'] = picked_total_load1_q + sum(
+                                            sorted_motor.loc[(sorted_motor.load_bus ==
+                                                              int(current_load)) & (
+                                                                         sorted_motor.processed == 'Y'), 'q_total'])
+                                        net_copy.load.sn_mva = np.sqrt(
+                                            np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
+                                        picked_steady_load1 = static_p + motor['p_total']
+                                        picked_steady_load1_q = static_q + motor['q_total']
+                                        random_multi = round(random.uniform(0.05, 0.1), 2)
+                                        powerflow_Inrush = pp.runpp(net_copy)
+                                        if net_copy.converged == True:
 
-                                        try:
-                                            motor = sorted_motor[
-                                                (sorted_motor.load_bus == int(current_load)) &
-                                                (sorted_motor.processed == 'N') &
-                                                (np.floor(sorted_motor.p_inrush_tot + static_p) + 5 < math.ceil(eff_gen_cap)) &
-                                                (np.floor(sorted_motor.q_inrush_tot + static_q) + 5 <math.ceil(eff_gen_cap_q))].iloc[0]
-                                        except IndexError:
-                                            motor = None
-                                        except TypeError:
-                                            motor = None
-                                        if motor is not None:
-                                            net_copy.load.loc[(net_copy.load['bus'] == current_load), 'in_service'] = True
-                                            print(iteration)
-                                            picked_total_load1 = motor['p_inrush_tot'] + static_p
-                                            picked_total_load1_q = motor['q_inrush_tot'] + static_q
-                                            net_copy.load.loc[(net_copy.load['bus'] == int(
-                                                current_load)), 'p_mw'] = picked_total_load1 + sum(
-                                                sorted_motor.loc[(sorted_motor.load_bus ==
-                                                                  int(current_load)) & (sorted_motor.processed == 'Y'), 'p_total'])
-                                            net_copy.load.loc[(net_copy.load['bus'] == int(
-                                                current_load)), 'q_mvar'] = picked_total_load1_q + sum(
-                                                sorted_motor.loc[(sorted_motor.load_bus ==
-                                                                  int(current_load)) & (
-                                                                             sorted_motor.processed == 'Y'), 'q_total'])
-                                            net_copy.load.sn_mva = np.sqrt(
-                                                np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
-                                            picked_steady_load1 = static_p + motor['p_total']
-                                            picked_steady_load1_q = static_q + motor['q_total']
-                                            random_multi = round(random.uniform(0.05, 0.1), 2)
-                                            powerflow_Inrush = pp.runpp(net_copy)
-                                            if net_copy.converged == True:
+                                            line_index = net_copy.line[
+                                                (net_copy.line['from_bus'] == valid_path[-2]) &
+                                                (net_copy.line['to_bus'] == valid_path[-1])].index.tolist()
+
+                                            if len(line_index) == 0:
                                                 line_index = net_copy.line[
-                                                    (net_copy.line['from_bus'] == valid_path[-2]) &
-                                                    (net_copy.line['to_bus'] == valid_path[-1])].index.tolist()
+                                                    (net_copy.line['to_bus'] == valid_path[-2]) &
+                                                    (net_copy.line['from_bus'] == valid_path[-1])].index.tolist()
 
                                                 if len(line_index) == 0:
-                                                    line_index = net_copy.line[
-                                                        (net_copy.line['to_bus'] == valid_path[-2]) &
-                                                        (net_copy.line['from_bus'] == valid_path[-1])].index.tolist()
+                                                    line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) &
+                                                        (net_copy.trafo['hv_bus'] == valid_path[-1])].index.tolist()
 
                                                     if len(line_index) == 0:
-                                                        line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) &
-                                                            (net_copy.trafo['hv_bus'] == valid_path[-1])].index.tolist()
-
-                                                        if len(line_index) == 0:
-                                                            line_index = net_copy.trafo[
-                                                                (net_copy.trafo['hv_bus'] == valid_path[-2]) &
-                                                                (net_copy.trafo['lv_bus'] == valid_path[-1])].index.tolist()
+                                                        line_index = net_copy.trafo[
+                                                            (net_copy.trafo['hv_bus'] == valid_path[-2]) &
+                                                            (net_copy.trafo['lv_bus'] == valid_path[-1])].index.tolist()
                                                         line_result = net_copy.res_trafo.iloc[line_index,]
                                                         try:
                                                             inrush_vd = round(((line_result['vm_hv_pu'] - line_result['vm_lv_pu']) / line_result['vm_hv_pu']) * 100, 2).values[0]
@@ -782,29 +783,37 @@ def restore(file):
                                                                                'vm_to_pu']) * 100, 2).values[0]
                                                     except IndexError:
                                                         inrush_vd = 0
+                                            else:
+                                                line_result = net_copy.res_line.iloc[line_index,]
+                                                try:
+                                                    inrush_vd = round(((line_result['vm_from_pu'] -
+                                                                        line_result['vm_to_pu']) / line_result[
+                                                                           'vm_to_pu']) * 100, 2).values[0]
+                                                except IndexError:
+                                                    inrush_vd = 0
 
-                                                net_copy.load.loc[(net_copy.load['bus'] == int(
-                                                    current_load)), 'q_mvar'] = picked_steady_load1_q + sum(
-                                                    sorted_motor.loc[(sorted_motor.load_bus ==
-                                                                      int(current_load)) & (
-                                                                                 sorted_motor.processed == 'Y'), 'q_total'])
-                                                net_copy.load.sn_mva = np.sqrt(np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
-                                                powerflow_Inrush = pp.runpp(net_copy)
-                                                iteration = iteration + 1
-                                                rest_row = None
-                                                rest_df = None
-                                                if len(rest_output) > 0:
-                                                    line_index = net_copy.line[
-                                                        (net_copy.line['from_bus'] == valid_path[-2]) &
-                                                        (net_copy.line['to_bus'] == valid_path[-1])].index.tolist()
+                                            net_copy.load.loc[(net_copy.load['bus'] == int(
+                                                current_load)), 'q_mvar'] = picked_steady_load1_q + sum(
+                                                sorted_motor.loc[(sorted_motor.load_bus ==
+                                                                  int(current_load)) & (
+                                                                             sorted_motor.processed == 'Y'), 'q_total'])
+                                            net_copy.load.sn_mva = np.sqrt(np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
+                                            powerflow_Inrush = pp.runpp(net_copy)
+                                            iteration = iteration + 1
+                                            rest_row = None
+                                            rest_df = None
+                                            if len(rest_output) > 0:
+                                                line_index = net_copy.line[
+                                                    (net_copy.line['from_bus'] == valid_path[-2]) &
+                                                    (net_copy.line['to_bus'] == valid_path[-1])].index.tolist()
+                                                if len(line_index) == 0:
+                                                    line_index = net_copy.line[(net_copy.line['to_bus'] == valid_path[-2]) &
+                                                              (net_copy.line['from_bus'] == valid_path[
+                                                                  -1])].index.tolist()
                                                     if len(line_index) == 0:
-                                                        line_index = net_copy.line[(net_copy.line['to_bus'] == valid_path[-2]) &
-                                                                  (net_copy.line['from_bus'] == valid_path[
-                                                                      -1])].index.tolist()
-                                                        if len(line_index) == 0:
-                                                            line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) & (
-                                                                    net_copy.trafo['hv_bus'] == valid_path[
-                                                                -1])].index.tolist()
+                                                        line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) & (
+                                                                net_copy.trafo['hv_bus'] == valid_path[
+                                                            -1])].index.tolist()
                                                         if len(line_index) == 0:
                                                             line_index = net_copy.trafo[(net_copy.trafo['hv_bus'] == valid_path[-2]) & (
                                                                     net_copy.trafo['lv_bus'] == valid_path[
@@ -826,6 +835,251 @@ def restore(file):
                                                                                  2).values[0]
                                                             except IndexError:
                                                                 normalvd = 0
+                                                    else:
+                                                        line_result = net_copy.res_line.iloc[line_index,]
+                                                        try:
+                                                            normalvd = round(((line_result['vm_to_pu'] -
+                                                                               line_result['vm_from_pu']) /
+                                                                              line_result['vm_from_pu']) * 100,
+                                                                             2).values[0]
+                                                        except IndexError:
+                                                            normalvd = 0
+                                                else:
+
+                                                    line_result = net_copy.res_line.iloc[line_index,]
+                                                    try:
+                                                        normalvd = round(((line_result['vm_from_pu'] -
+                                                                           line_result['vm_to_pu']) / line_result[
+                                                                              'vm_to_pu']) * 100, 2).values[0]
+                                                    except IndexError:
+                                                        normalvd = 0
+                                                if rest_output.loc[
+                                                        rest_output['cranking_power_provided_gen'] ==
+                                                        str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip('[]')].any().any():
+                                                    rest_row = [[iteration,
+                                                                 '-',
+                                                                 round(eff_gen_cap, 2),
+                                                                 round(eff_gen_cap_q, 2),
+                                                                 '-',
+                                                                 '-',
+                                                                 '-',
+                                                                 net_copy.load.loc[(net_copy.load.bus == int(
+                                                                     current_load)), 'name'].values[0],
+                                                                 motor['motor'],
+                                                                 round(motor['p_inrush_tot'], 2),
+                                                                 round(motor['q_inrush_tot'], 2),
+                                                                 round(picked_total_load1, 2),
+                                                                 round(picked_total_load1_q, 2),
+                                                                 round(picked_steady_load1, 2),
+                                                                 round(picked_steady_load1_q, 2),
+                                                                 round(picked_steady_load1 + (
+                                                                             static_p * random_multi), 2),
+                                                                 round(picked_steady_load1_q + (
+                                                                             static_q * random_multi), 2),
+                                                                 inrush_vd,
+                                                                 normalvd]]
+                                                    rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                                else:
+                                                    rest_row = [[iteration,
+                                                                 str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
+                                                                 round(eff_gen_cap, 2),
+                                                                 round(eff_gen_cap_q, 2),
+                                                                 '-' if next_gen is None else
+                                                                 str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip('[]'),
+                                                                 round(cranking_power, 2),
+                                                                 round(cranking_power_q, 2),
+                                                                 net_copy.load.loc[(net_copy.load.bus == int(
+                                                                     current_load)), 'name'].values[0],
+                                                                 motor['motor'],
+                                                                 round(motor['p_inrush_tot'], 2),
+                                                                 round(motor['q_inrush_tot'], 2),
+                                                                 round(picked_total_load1, 2),
+                                                                 round(picked_total_load1_q, 2),
+                                                                 round(picked_steady_load1, 2),
+                                                                 round(picked_steady_load1_q, 2),
+                                                                 round(picked_steady_load1 + (
+                                                                             static_p * random_multi), 2),
+                                                                 round(picked_steady_load1_q + (
+                                                                             static_q * random_multi), 2),
+                                                                 inrush_vd,
+                                                                 normalvd]]
+                                                    rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                            else:
+                                                line_index = net_copy.line[(net_copy.line['from_bus'] == valid_path[-2]) &
+                                                              (net_copy.line['to_bus'] == valid_path[
+                                                                  -1])].index.tolist()
+                                                if len(line_index) == 0:
+                                                    line_index = net_copy.line[(net_copy.line['to_bus'] == valid_path[-2]) &
+                                                              (net_copy.line['from_bus'] == valid_path[
+                                                                  -1])].index.tolist()
+                                                    if len(line_index) == 0:
+                                                        line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) &
+                                                           (net_copy.trafo['hv_bus'] == valid_path[
+                                                               -1])].index.tolist()
+                                                        if len(line_index) == 0:
+                                                            line_index = net_copy.trafo[(net_copy.trafo['hv_bus'] == valid_path[-2]) &
+                                                                           (net_copy.trafo['lv_bus'] == valid_path[-1])].index.tolist()
+                                                            line_result = net_copy.res_trafo.iloc[line_index,]
+                                                            try:
+                                                                normalvd = round(((line_result['vm_hv_pu'] -
+                                                                               line_result['vm_lv_pu']) / line_result[
+                                                                                  'vm_hv_pu']) * 100, 2).values[0]
+                                                            except IndexError:
+                                                                normalvd = 0
+                                                        else:
+                                                            line_result = net_copy.res_trafo.iloc[line_index,]
+                                                            try:
+                                                                normalvd = round(((line_result['vm_lv_pu'] -
+                                                                                   line_result['vm_hv_pu']) /
+                                                                                  line_result['vm_lv_pu']) * 100,
+                                                                                 2).values[0]
+                                                            except IndexError:
+                                                                normalvd = 0
+                                                    else:
+                                                        line_result = net_copy.res_line.iloc[line_index,]
+                                                        try:
+                                                            normalvd = round(((line_result['vm_to_pu'] -
+                                                                               line_result['vm_from_pu']) /
+                                                                              line_result['vm_from_pu']) * 100,
+                                                                             2).values[0]
+                                                        except IndexError:
+                                                            normalvd = 0
+                                                else:
+
+                                                    line_result = net_copy.res_line.iloc[line_index,]
+                                                    try:
+                                                        normalvd = round(((line_result['vm_from_pu'] -
+                                                                           line_result['vm_to_pu']) / line_result[
+                                                                              'vm_to_pu']) * 100, 2).values[0]
+                                                    except IndexError:
+                                                        normalvd = 0
+
+                                                rest_row = [[iteration,
+                                                             str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
+                                                             round(eff_gen_cap, 2),
+                                                             round(eff_gen_cap_q, 2),
+                                                             str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip('[]'),
+                                                             round(cranking_power, 2),
+                                                             round(cranking_power_q, 2),
+                                                             net_copy.load.loc[(net_copy.load.bus == int(current_load)), 'name'].values[0],
+                                                             motor['motor'],
+                                                             round(motor['p_inrush_tot'], 2),
+                                                             round(motor['q_inrush_tot'], 2),
+                                                             round(picked_total_load1, 2),
+                                                             round(picked_total_load1_q, 2),
+                                                             round(picked_steady_load1, 2),
+                                                             round(picked_steady_load1_q, 2),
+                                                             round(picked_steady_load1 + (static_p * random_multi), 2),
+                                                             round(picked_steady_load1_q + (static_q * random_multi), 2),
+                                                             inrush_vd,
+                                                             normalvd]]
+                                                rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                            try:
+                                                rest_output = rest_output.append(rest_df, ignore_index=False)
+                                            except:
+                                                rest_output = rest_df.copy()
+
+                                        net_copy.load.loc[(net_copy.load['bus'] == int(
+                                            current_load)), 'p_mw'] = picked_steady_load1
+
+                                        net_copy.load.loc[(net_copy.load['bus'] == int(
+                                            current_load)), 'q_mvar'] = picked_steady_load1_q
+                                        sorted_motor.loc[(sorted_motor['load_bus'] == int(current_load)) &
+                                                         (sorted_motor['motor'] == motor[
+                                                             'motor']), 'processed'] = 'Y'
+                                        powerflow_Inrush = pp.runpp(net_copy)
+
+                                        if static is not None:
+                                            static_data.loc[(static_data['load_bus'] == int(current_load)) &
+                                                            (static_data['id'] == static['id']), 'processed'] = 'Y'
+                                            static_data.loc[(static_data['load_bus'] == int(current_load)) &
+                                                            (static_data['id'] == static['id']), 'p'] = static_p + (
+                                                        static_p * random_multi)
+                                            static_data.loc[(static_data['load_bus'] == int(current_load)) &
+                                                            (static_data['id'] == static['id']), 'q'] = static_q + (
+                                                        static_q * random_multi)
+                                        cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
+                                        cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
+                                        try:
+                                            processed_load_steadystate_p = static_data.query("processed == 'Y'")['p'].sum()
+                                            processed_load_steadystate_q = static_data.query("processed == 'Y'")['q'].sum()
+                                        except IndexError:
+                                            processed_load_steadystate_p = 0
+                                            processed_load_steadystate_q = 0
+
+                                        try:
+                                            processed_load_steadystate_mot_p = sorted_motor.query("processed == 'Y'")['p_total'].sum()
+                                            processed_load_steadystate_mot_q = sorted_motor.query("processed == 'Y'")['q_total'].sum()
+                                        except IndexError:
+                                            processed_load_steadystate_mot_p = 0
+                                            processed_load_steadystate_mot_q = 0
+
+                                        eff_gen_cap = gen_capacity - cranking_power - processed_load_steadystate_p - processed_load_steadystate_mot_p
+                                        eff_gen_cap_q = gen_capacity_q - cranking_power_q - processed_load_steadystate_q - processed_load_steadystate_mot_q
+
+                                    else:
+                                        if not ((sorted_motor['load_bus'] == int(current_load)) &
+                                                (sorted_motor['processed'] == 'N')).any():
+                                            load_priority.loc[
+                                                load_priority['load_bus'] == int(current_load), 'processed'] = 'Y'
+                                            current_load_completed = True
+                                            not_completed_load.drop(
+                                                not_completed_load[not_completed_load['bus'] == int(current_load)].index,
+                                                inplace=True)
+                                            load_priority.drop(
+                                                load_priority[load_priority['load_bus'] == int(current_load)].index,
+                                                inplace=True)
+                                            net_copy.load.loc[net_copy.load['bus'] == int(current_load), 'p_mw'] = net.load.loc[net.load['bus'] == int(current_load), 'p_mw']
+                                            net_copy.load.loc[net_copy.load['bus'] == int(current_load), 'q_mvar'] = net.load.loc[net.load['bus'] == int(current_load), 'q_mvar']
+                                        else:
+                                            insufficient_capacity = True
+
+                                        break # 请问这里break有什么意义？
+                            total_static_p = 0
+                            total_static_q = 0
+                            break
+    print(rest_output)
+    abs_path = []
+    for x in short_path['path']:
+        for i, row in net.gen.iterrows():
+            if row['bus'] == x:
+                if len(abs_path) == 0:
+                    abs_path.append(net.ext_grid['name'].iloc[0])
+                if row['name'] != net.ext_grid['name'].iloc[0]:
+                    abs_path.append(row['name'])
+    return rest_output, abs_path
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

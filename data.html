@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}File Uploader{% endblock %}
+{% block page_content %}
+<!-- <div id='prompt' class="container">
+ <h3>Please select an option below</h3>
+ <button class="btn btn-primary" id='standard_radio'>Standard</button>
+ <button class="btn btn-success" id='custom_radio'>Custom</button>
+ <div id = "radiobuttons">
+ <form class = "" action = "data_radio" enctype="multipart/form-data" method = "post">
+ <div class = "radio">
+ <label><input class="form-check-input" type="radio" name="standardradio" id="9_bus"
+value="9_bus" checked>
+ 9 Bus System
+ </label>
+ </div>
+ <div class = "radio">
+ <label><input class="form-check-input" type="radio" name="standardradio"
+id="30_bus" value="30_bus" checked>
+ 30 Bus System
+ </label>
+ </div>
+ <input type = "submit" name = "radiosubmit" value = "Submit">
+ </form>
+ </div>
+</div> -->
+
+<div class="container" id='main_container'>
+    <h3>Please upload the network information</h3>
+    <form class = "" action = "data" enctype="multipart/form-data" method = "post">
+        <div class="col-sm-12" style="padding-left:0px">
+            <div class="col-sm-6">
+                Please upload xlsx file:
+            </div>
+            <span class="btn btn-success fileinput-button">
+                <input type = "file" name="upload-file" value = "">
+            </span>
+        </div>
+        <br/>
+        <div class="col-sm-12" style="padding-left:0px" >
+            <div class="col-sm-6">
+                Please upload Image file:
+            </div>
+            <span class="btn btn-success fileinput-button">
+                <input type = "file" name="upload-image" value = "">
+            </span>
+        </div>
+        <br/>
+        <br/>
+        <div class="col-sm-12" style="padding-left:0px" >
+            <div class="col-sm-6">
+                Click on Excel logo to download sample network data
+            </div>
+            <a href="/static/Restoration_Sample_Data.xlsx" download="Restoration_Sample_Data">
+            <img src="/static/Excel.png" alt="Excel" width="50" height="50" >
+            </a>
+        </div>
+        <input type = "submit" name = "" value = "Submit">
+    </form>
+</div>
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Rules</h3>
+    </div>
+    <div class="panel-body">
+        <ul>
+            <li>The maximum file size for uploads is <strong>50 MB</strong> </li>
+            <li>Only files <strong>XLSX</strong> are allowed to be uploaded.</li>
+        </ul>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<script>
+ $('#main_container').show()
+ // $('#main_container').hide()
+ // $('#custom_radio').on('click', () => {
+ // $('#main_container').show();
+ // $('#radiobuttons').hide();
+ // })
+ // $('#standard_radio').on('click', () => {
+ // $('#main_container').hide()
+ // $('#radiobuttons').show();
+ // })
+</script>
+{% endblock %}
