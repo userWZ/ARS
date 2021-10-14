@@ -1,8 +1,3 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-from flask_bootstrap import Bootstrap
-import os
-from os.path import join, dirname, realpath
-from werkzeug.utils import secure_filename  # web底层框架
 import pandas as pd
 import pandapower as pp
 import pandapower.networks as pn
@@ -11,32 +6,6 @@ from collections import defaultdict
 import math
 import random
 import copy as cp
-import time
-import json
-
-# 初始化flask
-app = Flask(__name__)
-data_table = []
-Bootstrap(app)
-app.config['UPLOAD_FOLDER'] = os.path.dirname(__file__)
-
-
-@app.route('/')
-def index():
-    return render_template('upload.html')
-
-
-@app.route('/data', methods=['GET', 'POST'])
-def data():
-    if request.method == 'POST':
-        file = request.files['upload-file']
-        data,path = restore (file)
-        image = request.files['upload-image']
-        print("image", image.filename)
-        image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
-        filename = os.path.join(app.config['UPLOAD_FOLDER']) + image.filename
-        print("file", filename)
-        return render_template ('data.html',data=data,data1=path,data2 = image.filename)
 
 
 def restore(file):
@@ -150,138 +119,142 @@ def restore(file):
             # Call the recursive helper function to print all paths
             self.printAllPathsUtil(s, d, visited, path)
             return self.path_list
+    if(file):
+        # 这里是函数中使用pp部分
+        net = pp.create_empty_network()
+        restoration_file = pd.ExcelFile(file)
 
-    # 这里是函数中使用pp部分
-    net = pp.create_empty_network()
-    restoration_file = pd.ExcelFile(file)
+        # Creating Buses
+        exc_bus = pd.read_excel(restoration_file, sheet_name='bus')
+        exc_bus.sort_values(by=['bus'], inplace=True)
 
-    # Creating Buses
-    exc_bus = pd.read_excel(restoration_file, sheet_name='bus')
-    exc_bus.sort_values(by=['bus'], inplace=True)
-    for index, row in exc_bus.iterrows():
-        pp.create_bus(net, vn_kv=row['vn_kv'], name=row['name'], in_service=True)
+        for index, row in exc_bus.iterrows():
+            pp.create_bus(net, vn_kv=row['vn_kv'], name=row['name'], in_service=True)
 
-    # Creating External grid
-    exc_grid = pd.read_excel(restoration_file, sheet_name='externalgrid')
+        # Creating External grid
+        exc_grid = pd.read_excel(restoration_file, sheet_name='externalgrid')
 
-    for index, row in exc_grid.iterrows():
-        pp.create_ext_grid(
-            net,
-            bus=row['bus'] - 1,
-            vm_pu=row['vm_pu'],
-            va_degree=row['va_degree'],
-            max_p_mw=row['max_p_mw'],
-            min_p_mw=row['min_p_mw'],
-            max_q_mvar=row['max_q_mvar'],
-            min_q_mvar=row['min_q_mvar'],
-            name=row['name'],
-            in_service=True
-        )
-        ext_grid_bus = row['bus'] - 1
+        for index, row in exc_grid.iterrows():
+            pp.create_ext_grid(
+                net,
+                bus=row['bus'],
+                vm_pu=row['vm_pu'],
+                va_degree=row['va_degree'],
+                max_p_mw=row['max_p_mw'],
+                min_p_mw=row['min_p_mw'],
+                max_q_mvar=row['max_q_mvar'],
+                min_q_mvar=row['min_q_mvar'],
+                name=row['name'],
+                in_service=True
+            )
+            ext_grid_bus = row['bus']
 
-    # Creating Generators
-    exc_gen = pd.read_excel(restoration_file, sheet_name='generator')
-    for index, row in exc_gen.iterrows():
-        pp.create_gen(
-            net,
-            bus=row['bus'] - 1,
-            p_mw=row['p_mw'],
-            vm_pu=row['vm_pu'],
-            sn_mva=row['sn_mva'],
-            name=row['name'],
-            max_q_mvar=row['max_q_mvar'],
-            min_q_mvar=row['min_q_mvar'],
-            in_service=True
-        )
-    # Creating Loads
-    dat = []
-    exc_load = pd.read_excel(restoration_file, sheet_name='load')
-    for index, row in exc_load.iterrows():
-        pp.create_load(
-            net,
-            bus=row['bus'] - 1,
-            p_mw=row['p_mw'],
-            q_mvar=row['q_mvar'],
-            const_z_percent=row['const_z_percent'],
-            const_i_percent=row['const_i_percent'],
-            sn_mva=row['sn_mva'],
-            # scaling=row['scaling'],
-            name=row['name'],
-            in_service=True
-        )
-        dat.append([row['bus'] - 1, row['priority']])
+        # Creating Generators
+        exc_gen = pd.read_excel(restoration_file, sheet_name='generator')
+        # exc_gen = exc_gen.drop([11])    # todo 这里还有BUG，只是针对原生数据进行的处理
+        for index, row in exc_gen.iterrows():
+            pp.create_gen(
+                net,
+                bus=row['bus'],
+                p_mw=row['p_mw'],
+                vm_pu=row['vm_pu'],
+                sn_mva=row['sn_mva'],
+                name=row['name'],
+                max_q_mvar=row['max_q_mvar'],
+                min_q_mvar=row['min_q_mvar'],
+                in_service=True
+            )
+        # Creating Loads
+        dat = []
+        exc_load = pd.read_excel(restoration_file, sheet_name='load')
+        for index, row in exc_load.iterrows():
+            pp.create_load(
+                net,
+                bus=row['bus'],
+                p_mw=row['p_mw'],
+                q_mvar=row['q_mvar'],
+                const_z_percent=row['const_z_percent'],
+                const_i_percent=row['const_i_percent'],
+                sn_mva=row['sn_mva'],
+                # scaling=row['scaling'],
+                name=row['name'],
+                in_service=True
+            )
+            dat.append([row['bus'], row['priority']])
 
-    # Creating Lines
-    exc_line = pd.read_excel(restoration_file, sheet_name='line')
-    for index, row in exc_line.iterrows():
-        pp.create_line_from_parameters(
-            net,
-            from_bus=row['from_bus'] - 1,
-            to_bus=row['to_bus'] - 1,
-            length_km=row['length_km'],
-            r_ohm_per_km=row['r_ohm_per_km'],
-            x_ohm_per_km=row['x_ohm_per_km'],
-            c_nf_per_km=row['c_nf_per_km'],
-            max_i_ka=row['max_i_ka'],
-            name=row['name'],
-            in_service=True
-        )
+        # Creating Lines
+        exc_line = pd.read_excel(restoration_file, sheet_name='line')
+        for index, row in exc_line.iterrows():
+            pp.create_line_from_parameters(
+                net,
+                from_bus=row['from_bus'],
+                to_bus=row['to_bus'],
+                length_km=row['length_km'],
+                r_ohm_per_km=row['r_ohm_per_km'],
+                x_ohm_per_km=row['x_ohm_per_km'],
+                c_nf_per_km=row['c_nf_per_km'],
+                max_i_ka=row['max_i_ka'],
+                name=row['name'],
+                in_service=True
+            )
 
-    # Creating Transformers
-    exc_trans = pd.read_excel(restoration_file, sheet_name='transformer')
-    for index, row in exc_trans.iterrows():
-        pp.create_transformer_from_parameters(
-            net,
-            hv_bus=row['hv_bus'] - 1,
-            lv_bus=row['lv_bus'] - 1,
-            name=row['name'],
-            sn_mva=row['sn_mva'],
-            vn_hv_kv=row['vn_hv_kv'],
-            vn_lv_kv=row['vn_lv_kv'],
-            vkr_percent=row['vkr_percent'],
-            vk_percent=row['vk_percent'],
-            pfe_kw=row['pfe_kw'],
-            i0_percent=row['i0_percent'],
-            shift_degree=row['shift_degree'],
-            in_service=True,
-            tap_side=row['tap_side']
-        )
-    pp.runpp(net)
+        # Creating Transformers
+        exc_trans = pd.read_excel(restoration_file, sheet_name='transformer')
+        for index, row in exc_trans.iterrows():
+            pp.create_transformer_from_parameters(
+                net,
+                hv_bus=row['hv_bus'],
+                lv_bus=row['lv_bus'],
+                name=row['name'],
+                sn_mva=row['sn_mva'],
+                vn_hv_kv=row['vn_hv_kv'],
+                vn_lv_kv=row['vn_lv_kv'],
+                vkr_percent=row['vkr_percent'],
+                vk_percent=row['vk_percent'],
+                pfe_kw=row['pfe_kw'],
+                i0_percent=row['i0_percent'],
+                shift_degree=row['shift_degree'],
+                in_service=True,
+                tap_side=row['tap_side']
+            )
+        pp.runpp(net)
 
-    # Create internal table for motors
-    motors = pd.read_excel(restoration_file, sheet_name='motorload')
+        # Create internal table for motors
+        motors = pd.read_excel(restoration_file, sheet_name='motorload')
 
-    motors['p'] = motors['motor_hp'] * 0.000746
-    motors['q'] = motors['p'] * np.tan(np.arccos(motors['power_factor_full load']))
-    motors['p_total'] = motors['p'] * motors['no_of_motors']
-    motors['q_total'] = motors['q'] * motors['no_of_motors']
-    motors['p_inrush'] = motors['q'] * motors['no_of_motors'] * np.sqrt(3)
-    motors['irated'] = ((motors['motor_hp'] * 746) / motors['power_factor_full_load']) / (
-            np.sqrt(3) * motors['voltage_kv'] * 1000 * motors['efficiency_full_load'])
-    motors['p_inrush'] = motors['voltage_kv'] * np.sqrt(3) * motors['irated'] * 6 * motors[
-        'power_factor_locked_rotor'] * (1 / (np.power(10, 6))) * 1000
-    motors['q_inrush'] = motors['voltage_kv'] * np.sqrt(3) * motors['irated'] * 6 * np.sin(
-        np.arccos(motors['power_factor_locked_rotor'])) * (1 / np.power(10, 6)) * 1000
-    motors['p_inrush_tot'] = motors['p_inrush'] * motors['no_of_motors']
-    motors['q_inrush_tot'] = motors['q_inrush'] * motors['no_of_motors']
-    motors['processed'] = 'N'
-    motors_renamed = motors.rename(columns={'motor_hp': 'motor'})
-    motors_renamed['load_bus'] = motors_renamed['load_bus'] - 1
-    static_motor = []
-    static_motor_row = []
-    sorted_motor = motors_renamed.groupby(["load_bus"]).apply(
-        lambda x: x.sort_values(["q_inrush_tot"], ascending=False)).reset_index(drop=True)
-    for index, row in net.load.iterrows():
-        no_of_motors = len(sorted_motor[sorted_motor['load_bus'] == row['bus']])
-        for i in range(0, no_of_motors):
-            static_motor_row = [
-                (row['p_mw'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'p_total'])) *
-                (1 / no_of_motors), (row['q_mvar'] -
-                                     sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'q_total'])) * (
-                        1 / no_of_motors), row['b us'], 'N']
-            static_motor.append(static_motor_row)
-    static_data = pd.DataFrame(static_motor, columns=['p', 'q', 'load_bus', 'id', 'processed'])
+        motors['p'] = motors['motor_hp'] * 0.000746
+        motors['q'] = motors['p'] * np.tan(np.arccos(motors['power_factor_full_load']))
+        motors['p_total'] = motors['p'] * motors['no_of_motors']
+        motors['q_total'] = motors['q'] * motors['no_of_motors']
+        motors['p_inrush'] = motors['q'] * motors['no_of_motors'] * np.sqrt(3)
+        motors['irated'] = ((motors['motor_hp'] * 746) / motors['power_factor_full_load']) / (
+                np.sqrt(3) * motors['voltage_kv'] * 1000 * motors['efficiency_full_load'])
+        motors['p_inrush'] = motors['voltage_kv'] * np.sqrt(3) * motors['irated'] * 6 * motors[
+            'power_factor_locked_rotor'] * (1 / (np.power(10, 6))) * 1000
+        motors['q_inrush'] = motors['voltage_kv'] * np.sqrt(3) * motors['irated'] * 6 * np.sin(
+            np.arccos(motors['power_factor_locked_rotor'])) * (1 / np.power(10, 6)) * 1000
+        motors['p_inrush_tot'] = motors['p_inrush'] * motors['no_of_motors']
+        motors['q_inrush_tot'] = motors['q_inrush'] * motors['no_of_motors']
+        motors['processed'] = 'N'
+        motors_renamed = motors.rename(columns={'motor_hp': 'motor'})
+        static_motor = []
+        static_motor_row = []
+        sorted_motor = motors_renamed.groupby(["load_bus"]).apply(
+            lambda x: x.sort_values(["q_inrush_tot"], ascending=False)).reset_index(drop=True)
+        for index, row in net.load.iterrows():
+            no_of_motors = len(sorted_motor[sorted_motor['load_bus'] == row['bus']])
+            for i in range(0, no_of_motors):
+                static_motor_row = [
+                    (row['p_mw'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'p_total'])) *
+                    (1 / no_of_motors), (row['q_mvar'] -
+                                         sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'q_total'])) * (
+                            1 / no_of_motors), row['bus'], 'N']
+                static_motor.append(static_motor_row)
+        static_data = pd.DataFrame(static_motor, columns=['p', 'q', 'load_bus', 'id', 'processed'])
 
+    else:
+        net = pn.case_ieee30()
+        # todo 添加motorload表，添加load优先级row
     # Create internal table for load priority
     load_priority = pd.DataFrame(dat, columns=['load_bus', 'priority'])
     load_priority['processed'] = 'N'
@@ -1085,5 +1058,3 @@ def restore(file):
     return rest_output, abs_path
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
