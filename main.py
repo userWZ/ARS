@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_bootstrap import Bootstrap
 import os
 from os.path import join, dirname, realpath
@@ -18,25 +18,25 @@ import json
 app = Flask(__name__)
 data_table = []
 Bootstrap(app)
-app.config['UPLOAD_FOLDER'] = '/Users/anu/Downloads/Anusha3/PSR/static/'
+app.config['UPLOAD_FOLDER'] = os.path.dirname(__file__)
 
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('upload.html')
 
 
 @app.route('/data', methods=['GET', 'POST'])
 def data():
     if request.method == 'POST':
         file = request.files['upload-file']
-        data, path = restore(file)
+        data,path = restore (file)
         image = request.files['upload-image']
         print("image", image.filename)
         image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
         filename = os.path.join(app.config['UPLOAD_FOLDER']) + image.filename
         print("file", filename)
-        return render_template('data.html', data=data, data1=path, data2=image.filename)
+        return render_template ('data.html',data=data,data1=path,data2 = image.filename)
 
 
 def restore(file):
@@ -205,7 +205,7 @@ def restore(file):
             const_z_percent=row['const_z_percent'],
             const_i_percent=row['const_i_percent'],
             sn_mva=row['sn_mva'],
-            scaling=row['scaling'],
+            # scaling=row['scaling'],
             name=row['name'],
             in_service=True
         )
@@ -672,21 +672,22 @@ def restore(file):
                                                         (net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
                                                     net_copy.switch.loc[
                                                         (net_copy.switch['element'] == trans_index[0]) & (
-                                                                    net_copy.switch['et'] == 't'), 'closed'] = True
+                                                                net_copy.switch['et'] == 't'), 'closed'] = True
                                                 elif (ts_row['lv_bus'] == valid_path[i]) and (net_copy.load.loc[
-                                            (net_copy.load.bus == ts_row['hv_bus']) & (net_copy.load.in_service ==
-                                                                                       True)].any().any()):
+                                                    (net_copy.load.bus == ts_row['hv_bus']) & (
+                                                            net_copy.load.in_service ==
+                                                            True)].any().any()):
                                                     trans_index = net_copy.trafo.loc[
                                                         (net_copy.trafo.hv_bus == ts_row['hv_bus']) & (
-                                                                    net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
+                                                                net_copy.trafo.lv_bus == ts_row['lv_bus'])].index.values
                                                     net_copy.switch.loc[
                                                         (net_copy.switch['element'] == trans_index[0]) & (
-                                                                    net_copy.switch['et'] == 't'), 'closed'] = True
+                                                                net_copy.switch['et'] == 't'), 'closed'] = True
                                 unprocessed_load.drop(
                                     unprocessed_load[unprocessed_load['bus'] == int(current_load)].index, inplace=True)
                                 try:
                                     motor = sorted_motor[
-                                        (sorted_motor.load_bus ==int(current_load)) &
+                                        (sorted_motor.load_bus == int(current_load)) &
                                         (sorted_motor.processed == 'N') &
                                         (sorted_motor.p_inrush_tot < eff_gen_cap) &
                                         (sorted_motor.q_inrush_tot < eff_gen_cap_q)].iloc[0]
@@ -700,7 +701,7 @@ def restore(file):
                                     motor = None
                                     try:
                                         static = static_data[(static_data.load_bus == int(current_load)) & (
-                                                    static_data.processed == 'N')].iloc[0]
+                                                static_data.processed == 'N')].iloc[0]
                                     except IndexError:
                                         static = None
                                     except TypeError:
@@ -716,8 +717,10 @@ def restore(file):
                                         motor = sorted_motor[
                                             (sorted_motor.load_bus == int(current_load)) &
                                             (sorted_motor.processed == 'N') &
-                                            (np.floor(sorted_motor.p_inrush_tot + static_p) + 5 < math.ceil(eff_gen_cap)) &
-                                            (np.floor(sorted_motor.q_inrush_tot + static_q) + 5 <math.ceil(eff_gen_cap_q))].iloc[0]
+                                            (np.floor(sorted_motor.p_inrush_tot + static_p) + 5 < math.ceil(
+                                                eff_gen_cap)) &
+                                            (np.floor(sorted_motor.q_inrush_tot + static_q) + 5 < math.ceil(
+                                                eff_gen_cap_q))].iloc[0]
                                     except IndexError:
                                         motor = None
                                     except TypeError:
@@ -730,12 +733,13 @@ def restore(file):
                                         net_copy.load.loc[(net_copy.load['bus'] == int(
                                             current_load)), 'p_mw'] = picked_total_load1 + sum(
                                             sorted_motor.loc[(sorted_motor.load_bus ==
-                                                              int(current_load)) & (sorted_motor.processed == 'Y'), 'p_total'])
+                                                              int(current_load)) & (
+                                                                         sorted_motor.processed == 'Y'), 'p_total'])
                                         net_copy.load.loc[(net_copy.load['bus'] == int(
                                             current_load)), 'q_mvar'] = picked_total_load1_q + sum(
                                             sorted_motor.loc[(sorted_motor.load_bus ==
                                                               int(current_load)) & (
-                                                                         sorted_motor.processed == 'Y'), 'q_total'])
+                                                                     sorted_motor.processed == 'Y'), 'q_total'])
                                         net_copy.load.sn_mva = np.sqrt(
                                             np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
                                         picked_steady_load1 = static_p + motor['p_total']
@@ -754,7 +758,8 @@ def restore(file):
                                                     (net_copy.line['from_bus'] == valid_path[-1])].index.tolist()
 
                                                 if len(line_index) == 0:
-                                                    line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) &
+                                                    line_index = net_copy.trafo[
+                                                        (net_copy.trafo['lv_bus'] == valid_path[-2]) &
                                                         (net_copy.trafo['hv_bus'] == valid_path[-1])].index.tolist()
 
                                                     if len(line_index) == 0:
@@ -763,7 +768,9 @@ def restore(file):
                                                             (net_copy.trafo['lv_bus'] == valid_path[-1])].index.tolist()
                                                         line_result = net_copy.res_trafo.iloc[line_index,]
                                                         try:
-                                                            inrush_vd = round(((line_result['vm_hv_pu'] - line_result['vm_lv_pu']) / line_result['vm_hv_pu']) * 100, 2).values[0]
+                                                            inrush_vd = round(((line_result['vm_hv_pu'] - line_result[
+                                                                'vm_lv_pu']) / line_result['vm_hv_pu']) * 100,
+                                                                              2).values[0]
                                                         except IndexError:
                                                             inrush_vd = 0
                                                     else:
@@ -796,8 +803,9 @@ def restore(file):
                                                 current_load)), 'q_mvar'] = picked_steady_load1_q + sum(
                                                 sorted_motor.loc[(sorted_motor.load_bus ==
                                                                   int(current_load)) & (
-                                                                             sorted_motor.processed == 'Y'), 'q_total'])
-                                            net_copy.load.sn_mva = np.sqrt(np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
+                                                                         sorted_motor.processed == 'Y'), 'q_total'])
+                                            net_copy.load.sn_mva = np.sqrt(
+                                                np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
                                             powerflow_Inrush = pp.runpp(net_copy)
                                             iteration = iteration + 1
                                             rest_row = None
@@ -807,17 +815,20 @@ def restore(file):
                                                     (net_copy.line['from_bus'] == valid_path[-2]) &
                                                     (net_copy.line['to_bus'] == valid_path[-1])].index.tolist()
                                                 if len(line_index) == 0:
-                                                    line_index = net_copy.line[(net_copy.line['to_bus'] == valid_path[-2]) &
-                                                              (net_copy.line['from_bus'] == valid_path[
-                                                                  -1])].index.tolist()
-                                                    if len(line_index) == 0:
-                                                        line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) & (
-                                                                net_copy.trafo['hv_bus'] == valid_path[
+                                                    line_index = net_copy.line[
+                                                        (net_copy.line['to_bus'] == valid_path[-2]) &
+                                                        (net_copy.line['from_bus'] == valid_path[
                                                             -1])].index.tolist()
-                                                        if len(line_index) == 0:
-                                                            line_index = net_copy.trafo[(net_copy.trafo['hv_bus'] == valid_path[-2]) & (
-                                                                    net_copy.trafo['lv_bus'] == valid_path[
+                                                    if len(line_index) == 0:
+                                                        line_index = net_copy.trafo[
+                                                            (net_copy.trafo['lv_bus'] == valid_path[-2]) & (
+                                                                    net_copy.trafo['hv_bus'] == valid_path[
                                                                 -1])].index.tolist()
+                                                        if len(line_index) == 0:
+                                                            line_index = net_copy.trafo[
+                                                                (net_copy.trafo['hv_bus'] == valid_path[-2]) & (
+                                                                        net_copy.trafo['lv_bus'] == valid_path[
+                                                                    -1])].index.tolist()
                                                             line_result = net_copy.res_trafo.iloc[line_index,]
                                                             try:
                                                                 normalvd = round(((line_result['vm_hv_pu'] -
@@ -854,8 +865,9 @@ def restore(file):
                                                     except IndexError:
                                                         normalvd = 0
                                                 if rest_output.loc[
-                                                        rest_output['cranking_power_provided_gen'] ==
-                                                        str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip('[]')].any().any():
+                                                    rest_output['cranking_power_provided_gen'] ==
+                                                    str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                        '[]')].any().any():
                                                     rest_row = [[iteration,
                                                                  '-',
                                                                  round(eff_gen_cap, 2),
@@ -873,19 +885,23 @@ def restore(file):
                                                                  round(picked_steady_load1, 2),
                                                                  round(picked_steady_load1_q, 2),
                                                                  round(picked_steady_load1 + (
-                                                                             static_p * random_multi), 2),
+                                                                         static_p * random_multi), 2),
                                                                  round(picked_steady_load1_q + (
-                                                                             static_q * random_multi), 2),
+                                                                         static_q * random_multi), 2),
                                                                  inrush_vd,
                                                                  normalvd]]
                                                     rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                                 else:
                                                     rest_row = [[iteration,
-                                                                 str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
+                                                                 str(net_copy.gen.loc[(
+                                                                                                  net_copy.gen.in_service == True), 'name'].tolist()).strip(
+                                                                     '[]'),
                                                                  round(eff_gen_cap, 2),
                                                                  round(eff_gen_cap_q, 2),
                                                                  '-' if next_gen is None else
-                                                                 str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip('[]'),
+                                                                 str(c_pow.loc[c_pow[
+                                                                                   'bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                                     '[]'),
                                                                  round(cranking_power, 2),
                                                                  round(cranking_power_q, 2),
                                                                  net_copy.load.loc[(net_copy.load.bus == int(
@@ -898,32 +914,38 @@ def restore(file):
                                                                  round(picked_steady_load1, 2),
                                                                  round(picked_steady_load1_q, 2),
                                                                  round(picked_steady_load1 + (
-                                                                             static_p * random_multi), 2),
+                                                                         static_p * random_multi), 2),
                                                                  round(picked_steady_load1_q + (
-                                                                             static_q * random_multi), 2),
+                                                                         static_q * random_multi), 2),
                                                                  inrush_vd,
                                                                  normalvd]]
                                                     rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                             else:
-                                                line_index = net_copy.line[(net_copy.line['from_bus'] == valid_path[-2]) &
-                                                              (net_copy.line['to_bus'] == valid_path[
-                                                                  -1])].index.tolist()
+                                                line_index = net_copy.line[
+                                                    (net_copy.line['from_bus'] == valid_path[-2]) &
+                                                    (net_copy.line['to_bus'] == valid_path[
+                                                        -1])].index.tolist()
                                                 if len(line_index) == 0:
-                                                    line_index = net_copy.line[(net_copy.line['to_bus'] == valid_path[-2]) &
-                                                              (net_copy.line['from_bus'] == valid_path[
-                                                                  -1])].index.tolist()
+                                                    line_index = net_copy.line[
+                                                        (net_copy.line['to_bus'] == valid_path[-2]) &
+                                                        (net_copy.line['from_bus'] == valid_path[
+                                                            -1])].index.tolist()
                                                     if len(line_index) == 0:
-                                                        line_index = net_copy.trafo[(net_copy.trafo['lv_bus'] == valid_path[-2]) &
-                                                           (net_copy.trafo['hv_bus'] == valid_path[
-                                                               -1])].index.tolist()
+                                                        line_index = net_copy.trafo[
+                                                            (net_copy.trafo['lv_bus'] == valid_path[-2]) &
+                                                            (net_copy.trafo['hv_bus'] == valid_path[
+                                                                -1])].index.tolist()
                                                         if len(line_index) == 0:
-                                                            line_index = net_copy.trafo[(net_copy.trafo['hv_bus'] == valid_path[-2]) &
-                                                                           (net_copy.trafo['lv_bus'] == valid_path[-1])].index.tolist()
+                                                            line_index = net_copy.trafo[
+                                                                (net_copy.trafo['hv_bus'] == valid_path[-2]) &
+                                                                (net_copy.trafo['lv_bus'] == valid_path[
+                                                                    -1])].index.tolist()
                                                             line_result = net_copy.res_trafo.iloc[line_index,]
                                                             try:
                                                                 normalvd = round(((line_result['vm_hv_pu'] -
-                                                                               line_result['vm_lv_pu']) / line_result[
-                                                                                  'vm_hv_pu']) * 100, 2).values[0]
+                                                                                   line_result['vm_lv_pu']) /
+                                                                                  line_result[
+                                                                                      'vm_hv_pu']) * 100, 2).values[0]
                                                             except IndexError:
                                                                 normalvd = 0
                                                         else:
@@ -955,13 +977,18 @@ def restore(file):
                                                         normalvd = 0
 
                                                 rest_row = [[iteration,
-                                                             str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
+                                                             str(net_copy.gen.loc[(
+                                                                                              net_copy.gen.in_service == True), 'name'].tolist()).strip(
+                                                                 '[]'),
                                                              round(eff_gen_cap, 2),
                                                              round(eff_gen_cap_q, 2),
-                                                             str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip('[]'),
+                                                             str(c_pow.loc[c_pow[
+                                                                               'bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                                 '[]'),
                                                              round(cranking_power, 2),
                                                              round(cranking_power_q, 2),
-                                                             net_copy.load.loc[(net_copy.load.bus == int(current_load)), 'name'].values[0],
+                                                             net_copy.load.loc[(net_copy.load.bus == int(
+                                                                 current_load)), 'name'].values[0],
                                                              motor['motor'],
                                                              round(motor['p_inrush_tot'], 2),
                                                              round(motor['q_inrush_tot'], 2),
@@ -970,7 +997,8 @@ def restore(file):
                                                              round(picked_steady_load1, 2),
                                                              round(picked_steady_load1_q, 2),
                                                              round(picked_steady_load1 + (static_p * random_multi), 2),
-                                                             round(picked_steady_load1_q + (static_q * random_multi), 2),
+                                                             round(picked_steady_load1_q + (static_q * random_multi),
+                                                                   2),
                                                              inrush_vd,
                                                              normalvd]]
                                                 rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
@@ -994,22 +1022,26 @@ def restore(file):
                                                             (static_data['id'] == static['id']), 'processed'] = 'Y'
                                             static_data.loc[(static_data['load_bus'] == int(current_load)) &
                                                             (static_data['id'] == static['id']), 'p'] = static_p + (
-                                                        static_p * random_multi)
+                                                    static_p * random_multi)
                                             static_data.loc[(static_data['load_bus'] == int(current_load)) &
                                                             (static_data['id'] == static['id']), 'q'] = static_q + (
-                                                        static_q * random_multi)
+                                                    static_q * random_multi)
                                         cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
                                         cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
                                         try:
-                                            processed_load_steadystate_p = static_data.query("processed == 'Y'")['p'].sum()
-                                            processed_load_steadystate_q = static_data.query("processed == 'Y'")['q'].sum()
+                                            processed_load_steadystate_p = static_data.query("processed == 'Y'")[
+                                                'p'].sum()
+                                            processed_load_steadystate_q = static_data.query("processed == 'Y'")[
+                                                'q'].sum()
                                         except IndexError:
                                             processed_load_steadystate_p = 0
                                             processed_load_steadystate_q = 0
 
                                         try:
-                                            processed_load_steadystate_mot_p = sorted_motor.query("processed == 'Y'")['p_total'].sum()
-                                            processed_load_steadystate_mot_q = sorted_motor.query("processed == 'Y'")['q_total'].sum()
+                                            processed_load_steadystate_mot_p = sorted_motor.query("processed == 'Y'")[
+                                                'p_total'].sum()
+                                            processed_load_steadystate_mot_q = sorted_motor.query("processed == 'Y'")[
+                                                'q_total'].sum()
                                         except IndexError:
                                             processed_load_steadystate_mot_p = 0
                                             processed_load_steadystate_mot_q = 0
@@ -1024,17 +1056,20 @@ def restore(file):
                                                 load_priority['load_bus'] == int(current_load), 'processed'] = 'Y'
                                             current_load_completed = True
                                             not_completed_load.drop(
-                                                not_completed_load[not_completed_load['bus'] == int(current_load)].index,
+                                                not_completed_load[
+                                                    not_completed_load['bus'] == int(current_load)].index,
                                                 inplace=True)
                                             load_priority.drop(
                                                 load_priority[load_priority['load_bus'] == int(current_load)].index,
                                                 inplace=True)
-                                            net_copy.load.loc[net_copy.load['bus'] == int(current_load), 'p_mw'] = net.load.loc[net.load['bus'] == int(current_load), 'p_mw']
-                                            net_copy.load.loc[net_copy.load['bus'] == int(current_load), 'q_mvar'] = net.load.loc[net.load['bus'] == int(current_load), 'q_mvar']
+                                            net_copy.load.loc[net_copy.load['bus'] == int(current_load), 'p_mw'] = \
+                                            net.load.loc[net.load['bus'] == int(current_load), 'p_mw']
+                                            net_copy.load.loc[net_copy.load['bus'] == int(current_load), 'q_mvar'] = \
+                                            net.load.loc[net.load['bus'] == int(current_load), 'q_mvar']
                                         else:
                                             insufficient_capacity = True
 
-                                        break # 请问这里break有什么意义？
+                                        break  # 请问这里break有什么意义？
                             total_static_p = 0
                             total_static_q = 0
                             break
@@ -1052,50 +1087,3 @@ def restore(file):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
