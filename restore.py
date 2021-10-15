@@ -434,7 +434,7 @@ def restore(file):
     # Gen1 is the black start
     black_start = 0
     # Filtering the data based on condition that source generator is 1. Since we have to process from gen1
-    conditions = {'source_gen': 0}
+    conditions = {'source_gen': 1}
     bs_result = [one_dict for one_dict in result if all(key in one_dict and conditions[key] == one_dict[key]
                                                         for key in conditions.keys())]
     # Sort the filtered data on Impedance and cranking power in ascending order
@@ -1051,7 +1051,6 @@ def restore(file):
                             total_static_p = 0
                             total_static_q = 0
                             break
-    print(rest_output)
     abs_path = []
     for x in short_path['path']:
         for i, row in net.gen.iterrows():

@@ -5,12 +5,18 @@ AUTOMATIC SYSTEM RESTORATION FOR INDUSTRIAL POWER SYSTEMS
 
 ### 文件结构
 ├─ data_extract  	实例数据提取
+
 │  └─ IEEE30  	IEEE30 实例数据
+
 ├─ paper 	 相关论文
+
 ├─ templates 	flask template部分
+
 │  └─ static	静态图片与数据
-├─ app 	web页面启动文件
-├─restore 黑启动算法部分
+
+├─ app.py 	web页面启动文件
+
+├─ restore.py 黑启动算法部分
 
 
 ### 安装教程
