@@ -42,11 +42,11 @@ def restore(file):
                     current_shortest_weight = shortest_paths[next_node][1]
                     if current_shortest_weight > weight:
                         shortest_paths[next_node] = (current_node, weight)
-                next_destinations = {node: shortest_paths[node] for node in shortest_paths if node not in visited}
-                if not next_destinations:
-                    return "Route Not Possible"
-                # next node is the destination with the lowest weigh
-                current_node = min(next_destinations, key=lambda k: next_destinations[k][1])
+            next_destinations = {node: shortest_paths[node] for node in shortest_paths if node not in visited}
+            if not next_destinations:
+                return "Route Not Possible"
+            # next node is the destination with the lowest weigh
+            current_node = min(next_destinations, key=lambda k: next_destinations[k][1])
 
         # Work back through destinations in shortest path
         path = []
@@ -94,7 +94,7 @@ def restore(file):
             # If current vertex is same as destination, then print
             # current path[]
             if u == d:
-                print(path)
+                print('path', path)
                 self.path_list.append(path.copy())
             else:
                 # If current vertex is not destination
@@ -109,6 +109,7 @@ def restore(file):
 
         # Prints all paths from 's' to 'd'
         def printAllPaths(self, s, d):
+            # s: gen 对应的bus, d: load 对应的bus
             self.path_list = []
             # Mark all the vertices as not visited
             visited = [False] * self.V
@@ -245,11 +246,11 @@ def restore(file):
             no_of_motors = len(sorted_motor[sorted_motor['load_bus'] == row['bus']])
             for i in range(0, no_of_motors):
                 static_motor_row = [
-                    (row['p_mw'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'p_total'])) *
-                    (1 / no_of_motors), (row['q_mvar'] -
-                                         sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'q_total'])) * (
-                            1 / no_of_motors), row['bus'], 'N']
+                    (row['p_mw'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'p_total'])) * (1 / no_of_motors),
+                    (row['q_mvar'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'q_total'])) * ( 1 / no_of_motors),
+                     row['bus'], index,'N']
                 static_motor.append(static_motor_row)
+
         static_data = pd.DataFrame(static_motor, columns=['p', 'q', 'load_bus', 'id', 'processed'])
 
     else:
@@ -310,7 +311,7 @@ def restore(file):
 
     net.switch.drop_duplicates(keep=False, inplace=True)
 
-    # Create Impedance
+    # Create Impedance 阻抗
     q = len(net.line)
     impedance = {}
     for a in range(0, q):
@@ -323,10 +324,13 @@ def restore(file):
     to_bus_data = {}
     from_bus_data = {}
 
+    '''
+    前面是电网相关的，后面是与路径规划相关的代码
+    '''
     # Create Edges and Weights for the graph structure
     # Edges are buses and weights is impedance
+    # 边信息第一部分，单独的线路的[from_bus, to_bus, 线路阻抗]
     edges_outer = []
-    each_record = ()
     for t in net.line.from_bus:
         result = net.line.loc[net.line['from_bus'] == t]
         to_bus_data = {}
@@ -337,16 +341,18 @@ def restore(file):
         distances[t] = to_bus_data
         del result
         del to_bus_data
-
+    # 边信息第二部分，边上有变压器[变压器高压侧， 变压器低压侧， 0]
     for index, row in net.trafo.iterrows():
         each_record = (row['hv_bus'], row['lv_bus'], 0)
         edges_outer.append(each_record)
     graph = Graph()
+    # 删除重复的边信息
     edges_outer = list(set(edges_outer))
     for edge in edges_outer:
         graph.add_edge(*edge)
     # Create a graph given in the above diagram
     no_of_buses = len(net.bus.name.unique())
+    # 这个类用于点信息
     g = Graph1(no_of_buses)
     for index, row in net.line.iterrows():
         g.addEdge(row['from_bus'], row['to_bus'])
@@ -355,10 +361,9 @@ def restore(file):
         g.addEdge(row['hv_bus'], row['lv_bus'])
         g.addEdge(row['lv_bus'], row['hv_bus'], )
     gen_load_all_paths = []
-    all_gen_load_paths = []
-    all_gen_load_paths = pd.DataFrame(columns=['gen', 'bus', 'all_paths'])
     for index, row in net.gen.iterrows():
         for index1, row1 in net.load.iterrows():
+            # 得到从gen去load的所有路径
             all_paths = g.printAllPaths(row['bus'], row1['bus'])
             gen_load_path = {'gen': row['bus'], 'bus': row1['bus'], 'all_paths': all_paths}
             gen_load_all_paths.append(gen_load_path)
