@@ -271,7 +271,7 @@ def restore(file):
     # Considering few as thermal and few as gas turbine generators
     for index, row in net.gen.iterrows():
         if row['name'] in ['G2', 'G3']:
-            cranking_power_p = 0.02 * (abs(row['p_mw']))
+            cranking_power_p = 0.02 * (abs(row['p_mw'])) #
             if math.isnan(net.gen['sn_mva'][0]):
                 cranking_power_q = 0
             else:
