@@ -428,6 +428,7 @@ def restore(file):
                             math.sqrt(net.gen.loc[net.gen['bus'] == prev_gen, 'sn_mva'].values[0] ** 2 -
                                       net.gen.loc[net.gen['bus'] == prev_gen, 'p_mw'].values[0] ** 2))
                 result.append(shortest_path_result)
+                print(shortest_path_result)
         processed.append(prev_gen)
 
     # Opening switches based on Lowest Impedence First and lowest cranking power
@@ -441,6 +442,7 @@ def restore(file):
     # bs_result_sorted = sorted(bs_result, key = lambda i: (i['imp'],i['c_pow']))
     bs_result_sorted = sorted(bs_result, key=lambda i: (i['imp']))
     path = []
+    path.append(1)
     total_imp = 0
     for eachrow in bs_result_sorted:
         path.append(eachrow['dest_gen'])
@@ -449,7 +451,6 @@ def restore(file):
     short_path['total_imp'] = total_imp
     net.switch['closed'] = False
     net.gen['in_service'] = False
-    filecount = 0
 
     ####### Looping Swith Logic to be added ##########
     # Loop on filtered data where source generator is 0

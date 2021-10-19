@@ -99,7 +99,7 @@ pip install -r requirement.txt
 | ---- | ---- | ---- |
 | load_number| The load that motor belongs to                               | 电机所属的负载 |
 |load_bus	| Index of the load bus | 负载总线的index |
-| motor                     | Horsepower motor rating                                      | 马力电机额定值 |
+| motor_HP              | Horsepower motor rating                                      | 马力电机额定值 |
 |no_of_motors | Number of motors connected to the load and are of same horsepower. | 无电机连接至负载且功率相同的电机数量。 |
 |voltage_kv 	| Rated Voltage of a motor                                     | 电机的额定电压 |
 |full_load_current	| Full load Amp (FLA) rating is at which motor will consume power at 100% of rated load | 满载安培（FLA）额定值是指电机在100%额定负载下消耗功率的额定值 |
