@@ -24,12 +24,12 @@ def data():
     if request.method == 'POST':
         file = request.files['upload-file']
         data,path = restore(file)
-        image = request.files['upload-image']
-        print("image", image.filename)
-        image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
-        filename = os.path.join(app.config['UPLOAD_FOLDER']) + image.filename
-        print("file", filename)
-        return render_template ('data.html',data=data,data1=path,data2 = image.filename)
+        # image = request.files['upload-image']
+        # print("image", image.filename)
+        # image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
+        # filename = os.path.join(app.config['UPLOAD_FOLDER']) + image.filename
+        # print("file", filename)
+        return render_template ('data.html', data=data, data1=path)
 
 
 if __name__ == '__main__':
