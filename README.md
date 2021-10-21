@@ -119,3 +119,18 @@ Motor_hp是电机马力，no_of_motors表示属于相同负载的具有相同马
 假设每个负载的15%是电机负载，因此对应的load_number，load_bus是与load相同的关系
 
 motor_hp在200HP~3500HP之间
+
+
+
+### 运行流程
+
+```mermaid
+flowchart TD
+    step1[开启\n Black start gen] --> step2[找到两个电机之间\n的最短路径];
+    step2 --> C[计算m];
+    C --> D[Rethink];
+    D --> B;
+    B -- No ----> E[End];
+
+```
+

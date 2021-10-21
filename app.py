@@ -24,6 +24,8 @@ def data():
     if request.method == 'POST':
         file = request.files['upload-file']
         data,path = restore(file)
+        print('=======================')
+        print('file:', file)
         # image = request.files['upload-image']
         # print("image", image.filename)
         # image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
