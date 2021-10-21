@@ -1,8 +1,10 @@
 import pandapower.networks as pn
+import pandapower as pp
 import pandas as pd
 import numpy as np
 
 net = pn.case_ieee30()
+pp.runpp(net)
 print(net)
 
 #

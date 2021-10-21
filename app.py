@@ -21,17 +21,23 @@ def index():
 
 @app.route('/data', methods=['GET', 'POST'])
 def data():
+    print('=======================')
+    # print('file:', request.files['upload-file'])
     if request.method == 'POST':
         file = request.files['upload-file']
+        file = 'IEEE30.xlsx'
         data,path = restore(file)
-        print('=======================')
-        print('file:', file)
+
         # image = request.files['upload-image']
         # print("image", image.filename)
         # image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
         # filename = os.path.join(app.config['UPLOAD_FOLDER']) + image.filename
         # print("file", filename)
         return render_template ('data.html', data=data, data1=path)
+    else:
+        file = 'IEEE30.xlsx'
+        data, path = restore(file)
+        return render_template('data.html', data=data, data1=path)
 
 
 if __name__ == '__main__':

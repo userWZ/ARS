@@ -492,7 +492,7 @@ def restore(file):
     current_gen = None
     next_gen = None
     rest_col_names = ['iteration', 'gen_turned_on', 'eff_gen_cap_p', 'eff_gen_cap_q', 'cranking_power_provided_gen',
-                      'cranking_power_p', 'cranking_power_q', 'Load_Name', 'motor_gr oup', 'pli_mw', 'qli_mvar',
+                      'cranking_power_p', 'cranking_power_q', 'Load_Name', 'motor_group', 'pli_mw', 'qli_mvar',
                       'p_mw',
                       'q_mw', 'lp_mw', 'lq_mvar', 'pr_mw', 'qr_mvar', 'Voltage_Drop', 'Voltage_Drop_steady']
     for eachrow in bs_result_sorted:
