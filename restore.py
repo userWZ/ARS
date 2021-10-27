@@ -78,6 +78,7 @@ def restore(file):
             self.path_list = []
 
         # function to add an edge to graph
+        # 得到一个字典，key: bus节点 value: 相连接的节点
         def addEdge(self, u, v):
             self.graph[u].append(v)
 
@@ -96,6 +97,7 @@ def restore(file):
             if u == d:
                 # print('path', path)
                 self.path_list.append(path.copy())
+
             else:
                 # If current vertex is not destination
                 # Recur for all the vertices adjacent to this vertex
@@ -103,9 +105,9 @@ def restore(file):
                     if not visited[i]:
                         self.printAllPathsUtil(i, d, visited, path)
 
-                # Remove current vertex from path[] and mark it as unvisited
-                path.pop()
-                visited[u] = False
+            # Remove current vertex from path[] and mark it as unvisited
+            path.pop()
+            visited[u] = False
 
         # Prints all paths from 's' to 'd'
         def printAllPaths(self, s, d):
@@ -140,7 +142,7 @@ def restore(file):
         for index, row in exc_grid.iterrows():
             pp.create_ext_grid(
                 net,
-                bus=row['bus'],
+                bus=row['bus'] - 1,
                 vm_pu=row['vm_pu'],
                 va_degree=row['va_degree'],
                 max_p_mw=row['max_p_mw'],
@@ -150,7 +152,7 @@ def restore(file):
                 name=row['name'],
                 in_service=True
             )
-            ext_grid_bus = row['bus']
+            ext_grid_bus = row['bus'] - 1
 
         # Creating Generators
         exc_gen = pd.read_excel(restoration_file, sheet_name='generator')
@@ -158,14 +160,15 @@ def restore(file):
         for index, row in exc_gen.iterrows():
             pp.create_gen(
                 net,
-                bus=row['bus'],
+                bus=row['bus'] - 1,
                 p_mw=row['p_mw'],
                 vm_pu=row['vm_pu'],
                 sn_mva=row['sn_mva'],
                 name=row['name'],
                 max_q_mvar=row['max_q_mvar'],
                 min_q_mvar=row['min_q_mvar'],
-                in_service=True
+                in_service=True,
+                slack=row['slack']
             )
         # Creating Loads
         dat = []
@@ -173,7 +176,7 @@ def restore(file):
         for index, row in exc_load.iterrows():
             pp.create_load(
                 net,
-                bus=row['bus'],
+                bus=row['bus'] - 1,
                 p_mw=row['p_mw'],
                 q_mvar=row['q_mvar'],
                 const_z_percent=row['const_z_percent'],
@@ -183,15 +186,16 @@ def restore(file):
                 name=row['name'],
                 in_service=True
             )
-            dat.append([row['bus'], row['priority']])
+            # print(net.load)
+            dat.append([row['bus'] - 1, row['priority']])
 
         # Creating Lines
         exc_line = pd.read_excel(restoration_file, sheet_name='line')
         for index, row in exc_line.iterrows():
             pp.create_line_from_parameters(
                 net,
-                from_bus=row['from_bus'],
-                to_bus=row['to_bus'],
+                from_bus=row['from_bus'] - 1,
+                to_bus=row['to_bus'] - 1,
                 length_km=row['length_km'],
                 r_ohm_per_km=row['r_ohm_per_km'],
                 x_ohm_per_km=row['x_ohm_per_km'],
@@ -206,8 +210,8 @@ def restore(file):
         for index, row in exc_trans.iterrows():
             pp.create_transformer_from_parameters(
                 net,
-                hv_bus=row['hv_bus'],
-                lv_bus=row['lv_bus'],
+                hv_bus=row['hv_bus'] - 1,
+                lv_bus=row['lv_bus'] - 1,
                 name=row['name'],
                 sn_mva=row['sn_mva'],
                 vn_hv_kv=row['vn_hv_kv'],
@@ -252,7 +256,7 @@ def restore(file):
                                 1 / no_of_motors),
                     (row['q_mvar'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'q_total'])) * (
                                 1 / no_of_motors),
-                    row['bus'], index, 'N']
+                    row['bus'] - 1, index, 'N']
                 static_motor.append(static_motor_row)
 
         static_data = pd.DataFrame(static_motor, columns=['p', 'q', 'load_bus', 'id', 'processed'])
@@ -308,11 +312,11 @@ def restore(file):
                 pp.create_switch(net, bus=lines.to_bus, element=index, et='l')
             del duplicatecheck_frombus, duplicatecheck_tobus
 
-    # Create switches between bus and transformer
-    for index, lines in net.trafo.iterrows():
-        load_index = net.load.loc[net.load['bus'] == frombus]
-        pp.create_switch(net, bus=lines.hv_bus, element=index, et='t')
-        pp.create_switch(net, bus=lines.lv_bus, element=index, et='t')
+        # Create switches between bus and transformer
+        for index, lines in net.trafo.iterrows():
+            load_index = net.load.loc[net.load['bus'] == frombus]
+            pp.create_switch(net, bus=lines.hv_bus, element=index, et='t')
+            pp.create_switch(net, bus=lines.lv_bus, element=index, et='t')
 
     net.switch.drop_duplicates(keep=False, inplace=True)
 
@@ -321,14 +325,7 @@ def restore(file):
     impedance = {}
     for a in range(0, q):
         impedance[net.line.name[a]] = abs(net.line.r_ohm_per_km[a] + 1j * net.line.x_ohm_per_km[a])
-    l = []
-    for s in net.bus.name:
-        l.append(s)
-    nodes = l
     distances = {}
-    to_bus_data = {}
-    from_bus_data = {}
-
     '''
     前面是电网相关的，后面是与路径规划相关的代码
     '''
@@ -408,12 +405,12 @@ def restore(file):
                 else:
                     shortest_path_result['source_pow'] = abs(
                         net.res_ext_grid.loc[net.ext_grid['bus'] == prev_gen, 'p_mw'].values[0])
-                if math.isnan(net.gen.loc[net.gen['bus'] == prev_gen, 'sn_mva'].values[0]):
-                    shortest_path_result['source_pow_q'] = 0
-                else:
-                    shortest_path_result['source_pow_q'] = abs(
-                        math.sqrt(net.gen.loc[net.gen['bus'] == prev_gen, 'sn_mva'].values[0] ** 2 -
-                                  net.gen.loc[net.gen['bus'] == prev_gen, 'p_mw'].values[0] ** 2))
+                    if math.isnan(net.gen.loc[net.gen['bus'] == prev_gen, 'sn_mva'].values[0]):
+                        shortest_path_result['source_pow_q'] = 0
+                    else:
+                        shortest_path_result['source_pow_q'] = abs(
+                            math.sqrt(net.gen.loc[net.gen['bus'] == prev_gen, 'sn_mva'].values[0] ** 2 -
+                                      net.gen.loc[net.gen['bus'] == prev_gen, 'p_mw'].values[0] ** 2))
                 if any(net.gen.bus == curr_gen):
                     shortest_path_result['dest_pow'] = abs(net.gen.loc[net.gen['bus'] == curr_gen, 'p_mw'].values[0])
                     if math.isnan(net.gen.loc[net.gen['bus'] == prev_gen, 'sn_mva'].values[0]):
@@ -438,13 +435,13 @@ def restore(file):
     # Gen1 is the black start
     black_start = 0
     # Filtering the data based on condition that source generator is 1. Since we have to process from gen1
-    conditions = {'source_gen': 1}
+    conditions = {'source_gen': 0}
     bs_result = [one_dict for one_dict in result if all(key in one_dict and conditions[key] == one_dict[key]
                                                         for key in conditions.keys())]
     # Sort the filtered data on Impedance and cranking power in ascending order
     # bs_result_sorted = sorted(bs_result, key = lambda i: (i['imp'],i['c_pow']))
     bs_result_sorted = sorted(bs_result, key=lambda i: (i['imp']))
-    path = [1]
+    path = [0]
     total_imp = 0
     for eachrow in bs_result_sorted:
         path.append(eachrow['dest_gen'])
@@ -453,16 +450,20 @@ def restore(file):
     short_path['total_imp'] = total_imp
     net.switch['closed'] = False
     net.gen['in_service'] = False
-
+    abs_path = []
+    for x in short_path['path']:
+        for i, row in net.gen.iterrows():
+            if row['bus'] == x:
+                if len(abs_path) == 0:
+                    abs_path.append(net.ext_grid['name'].iloc[0])
+                if row['name'] != net.ext_grid['name'].iloc[0]:
+                    abs_path.append(row['name'])
     ####### Looping Swith Logic to be added ##########
     # Loop on filtered data where source generator is 0
     # for eachrow in bs_result_sorted:
     # Get the shortest path between two generators
-    net.gen.loc[net.gen['bus'] == ext_grid_bus, 'in_service'] = True
-    net.gen.loc[net.gen['bus'] == ext_grid_bus, 'slack'] = True
-    slack_vm_pu = net.gen.loc[net.gen['slack'] == True, 'vm_pu']
+    net.gen.loc[net.gen['slack'] == True, 'in_service'] = True
     net.load.in_service = False
-    processed_bus = []
     inrush_bus = []
     load_temp = net.load.copy()
     indexnames = None
@@ -471,7 +472,7 @@ def restore(file):
     available_gen = pd.DataFrame(columns=net.gen.columns.values)
     unprocessed_temp = []
     avail_list_gen = []
-
+    # available_gen = available_gen.append(net.gen.loc[net.gen['slack'] == True])
     unprocessed_gen = cp.deepcopy(net.gen)
     unprocessed_gen['q'] = None
     for index, row in unprocessed_gen.iterrows():
@@ -501,6 +502,7 @@ def restore(file):
         for rest_var in range(0, len(restoration_path)):
             if restoration_path[rest_var] not in list(available_gen.bus):
                 current_gen = restoration_path[rest_var]
+                # 判断是否路径已到达目标gen
                 if rest_var < len(restoration_path) - 1:
                     next_gen = restoration_path[rest_var + 1]
                 else:
@@ -519,11 +521,10 @@ def restore(file):
                 cond = unprocessed_gen['name'].isin(available_gen['name'])
                 # 更新未开机发电机数组
                 unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
+
+                print('当前已启动的电机', available_gen)
                 gen_capacity = float(0)
                 gen_capacity_q = float(0)
-                cranking_power = None
-                cranking_power_q = None
-
                 # Calculate Available generation capacity, processed load and effective generation capability
                 gen_capacity = gen_capacity + abs(available_gen['p_mw'].sum())
                 gen_capacity_q = gen_capacity_q + abs(available_gen['q'].sum())
@@ -559,7 +560,10 @@ def restore(file):
                         # 从gen 去 load
                         if ((available_gen[available_gen['bus'] == eachload_paths.get('gen')].any().any())
                                 & (eachload_paths.get('bus') == current_load)):
+                            # 找到 从current_gen去current_load的path
                             all_paths_arr = eachload_paths.get('all_paths')
+                            # print('从current_gen{current_gen}去current_load{current_load}的路径:{path}'
+                            #       .format(current_gen=current_gen, current_load=current_load, path=all_paths_arr))
                             valid_path = []
                             unprocessed_gen_set = set(unprocessed_gen['bus'])
                             unprocessed_load_set = set(unprocessed_load['bus'])
@@ -576,20 +580,22 @@ def restore(file):
                                         or trans_hv.intersection(single_path_set) \
                                         or trans_lv.intersection(single_path_set):
                                     valid_path_flag = False
+                                    # print('路径中存在未启动的电机或负载')
                                 if valid_path_flag:
                                     valid_path = all_paths_arr[i]
                                     break
                             if not valid_path_flag:
+                                # 路径中存在未开机的电机或者负载时
+                                # 这里又判断了一遍不计算变压器的情况，不太理解
                                 for i in range(0, len(all_paths_arr)):
                                     valid_path_flag = True
                                     single_path = all_paths_arr[i]
                                     single_path_set = set(single_path)
                                     single_path_set_load = set(single_path[:-1])
-                                    if unprocessed_gen_set.intersection(single_path_set):
+                                    if unprocessed_gen_set.intersection(single_path_set) \
+                                            or unprocessed_load_set.intersection(single_path_set_load):
                                         valid_path_flag = False
-                                    if valid_path_flag:
-                                        if unprocessed_load_set.intersection(single_path_set_load):
-                                            valid_path_flag = False
+                                        # print('gen: {gen} --> load: {load}\npath: {path} '.format(gen=current_load, load=current_load, path=single_path))
                                     if valid_path_flag:
                                         for j in range(0, len(single_path) - 1):
                                             if (net_copy.trafo.loc[
@@ -607,6 +613,7 @@ def restore(file):
                                         break
 
                             if not valid_path_flag:
+                                # 找不到合理的路径， 开始寻找下一个电机负载对
                                 continue
                             else:
                                 for i in range(0, len(valid_path) - 1):
@@ -666,6 +673,9 @@ def restore(file):
                                                                 net_copy.switch['et'] == 't'), 'closed'] = True
                                 unprocessed_load.drop(
                                     unprocessed_load[unprocessed_load['bus'] == int(current_load)].index, inplace=True)
+                                print('success! gen: {gen}, load: {load}: path: {path}'.format(gen=current_gen, load=current_load, path = valid_path))
+                                if len(unprocessed_load) == 0:
+                                    print('所有负载均已启动')
                                 try:
                                     motor = sorted_motor[
                                         (sorted_motor.load_bus == int(current_load)) &
@@ -700,7 +710,7 @@ def restore(file):
                                             (sorted_motor.processed == 'N') &
                                             (np.floor(sorted_motor.p_inrush_tot + static_p) + 5 < math.ceil(
                                                 eff_gen_cap)) &
-                                            (np.floor(sorted_motor.q_inrush_tot + static_q) + 5 < math.ceil(
+                                            (np.floor(sorted_motor.q_inrush_tot + static_q) +  5 < math.ceil(
                                                 eff_gen_cap_q))].iloc[0]
                                     except IndexError:
                                         motor = None
@@ -957,14 +967,12 @@ def restore(file):
                                                     except IndexError:
                                                         normalvd = 0
 
-                                                rest_row = [[iteration,
-                                                             str(net_copy.gen.loc[(
-                                                                                          net_copy.gen.in_service == True), 'name'].tolist()).strip(
+                                                    rest_row = [[iteration,
+                                                             str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip(
                                                                  '[]'),
                                                              round(eff_gen_cap, 2),
                                                              round(eff_gen_cap_q, 2),
-                                                             str(c_pow.loc[c_pow[
-                                                                               'bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                             str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
                                                                  '[]'),
                                                              round(cranking_power, 2),
                                                              round(cranking_power_q, 2),
@@ -982,7 +990,7 @@ def restore(file):
                                                                    2),
                                                              inrush_vd,
                                                              normalvd]]
-                                                rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                                    rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                             try:
                                                 rest_output = rest_output.append(rest_df, ignore_index=False)
                                             except:
@@ -1054,12 +1062,4 @@ def restore(file):
                             total_static_p = 0
                             total_static_q = 0
                             break
-    abs_path = []
-    for x in short_path['path']:
-        for i, row in net.gen.iterrows():
-            if row['bus'] == x:
-                if len(abs_path) == 0:
-                    abs_path.append(net.ext_grid['name'].iloc[0])
-                if row['name'] != net.ext_grid['name'].iloc[0]:
-                    abs_path.append(row['name'])
     return rest_output, abs_path

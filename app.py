@@ -25,7 +25,7 @@ def data():
     # print('file:', request.files['upload-file'])
     if request.method == 'POST':
         file = request.files['upload-file']
-        file = 'IEEE30.xlsx'
+        file = 'IEEE30_2.xlsx'
         data,path = restore(file)
 
         # image = request.files['upload-image']
