@@ -21,12 +21,10 @@ def index():
 
 @app.route('/data', methods=['GET', 'POST'])
 def data():
-    print('=======================')
-    # print('file:', request.files['upload-file'])
     if request.method == 'POST':
         file = request.files['upload-file']
         file = 'IEEE30_2.xlsx'
-        data,path = restore(file)
+        data, path = restore(file)
 
         # image = request.files['upload-image']
         # print("image", image.filename)

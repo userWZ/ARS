@@ -1,0 +1,5 @@
+pandas == 1.2.0
+pandapower == 2.7.0
+flask == 2.0.1
+flask-bootstrap == 3.3.7.1
+werkzeug == 2.0.1

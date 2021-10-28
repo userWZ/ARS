@@ -248,6 +248,7 @@ def restore(file):
         static_motor_row = []
         sorted_motor = motors_renamed.groupby(["load_bus"]).apply(
             lambda x: x.sort_values(["q_inrush_tot"], ascending=False)).reset_index(drop=True)
+        sorted_motor['load_bus']=sorted_motor['load_bus'] - 1
         for index, row in net.load.iterrows():
             no_of_motors = len(sorted_motor[sorted_motor['load_bus'] == row['bus']])
             for i in range(0, no_of_motors):
@@ -256,7 +257,7 @@ def restore(file):
                                 1 / no_of_motors),
                     (row['q_mvar'] - sum(sorted_motor.loc[sorted_motor['load_bus'] == row['bus'], 'q_total'])) * (
                                 1 / no_of_motors),
-                    row['bus'] - 1, index, 'N']
+                    row['bus'], index, 'N']
                 static_motor.append(static_motor_row)
 
         static_data = pd.DataFrame(static_motor, columns=['p', 'q', 'load_bus', 'id', 'processed'])
@@ -521,8 +522,6 @@ def restore(file):
                 cond = unprocessed_gen['name'].isin(available_gen['name'])
                 # 更新未开机发电机数组
                 unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
-
-                print('当前已启动的电机', available_gen['bus'])
                 gen_capacity = float(0)
                 gen_capacity_q = float(0)
                 # Calculate Available generation capacity, processed load and effective generation capability
@@ -679,17 +678,6 @@ def restore(file):
                                 # print('success! gen: {gen}, load: {load}: path: {path}'.format(gen=current_gen, load=current_load, path = valid_path))
                                 if len(unprocessed_load) == 0:
                                     print('所有负载均已启动')
-                                try:
-                                    motor = sorted_motor[
-                                        (sorted_motor.load_bus == int(current_load)) &
-                                        (sorted_motor.processed == 'N') &
-                                        (sorted_motor.p_inrush_tot < eff_gen_cap) &
-                                        (sorted_motor.q_inrush_tot < eff_gen_cap_q)].iloc[0]
-                                except IndexError:
-                                    motor = None
-                                except TypeError:
-                                    motor = None
-                                    print("test")
                                 while 1 == 1:
                                     static = None
                                     motor = None
@@ -721,7 +709,6 @@ def restore(file):
                                         motor = None
                                     if motor is not None:
                                         net_copy.load.loc[(net_copy.load['bus'] == current_load), 'in_service'] = True
-                                        print(iteration)
                                         picked_total_load1 = motor['p_inrush_tot'] + static_p
                                         picked_total_load1_q = motor['q_inrush_tot'] + static_q
                                         net_copy.load.loc[(net_copy.load['bus'] == int(
@@ -886,10 +873,9 @@ def restore(file):
                                                                  normalvd]]
                                                     rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                                 else:
+                                                    print(str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'))
                                                     rest_row = [[iteration,
-                                                                 str(net_copy.gen.loc[(
-                                                                                              net_copy.gen.in_service == True), 'name'].tolist()).strip(
-                                                                     '[]'),
+                                                                 str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
                                                                  round(eff_gen_cap, 2),
                                                                  round(eff_gen_cap_q, 2),
                                                                  '-' if next_gen is None else
