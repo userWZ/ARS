@@ -522,7 +522,7 @@ def restore(file):
                 # 更新未开机发电机数组
                 unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
 
-                print('当前已启动的电机', available_gen)
+                print('当前已启动的电机', available_gen['bus'])
                 gen_capacity = float(0)
                 gen_capacity_q = float(0)
                 # Calculate Available generation capacity, processed load and effective generation capability
@@ -583,6 +583,7 @@ def restore(file):
                                     # print('路径中存在未启动的电机或负载')
                                 if valid_path_flag:
                                     valid_path = all_paths_arr[i]
+                                    print('启动load: {load}的有效路径path: {path}'.format(load=current_gen, path=valid_path))
                                     break
                             if not valid_path_flag:
                                 # 路径中存在未开机的电机或者负载时
@@ -610,6 +611,7 @@ def restore(file):
                                                 break
                                     if valid_path_flag:
                                         valid_path = all_paths_arr[i]
+                                        print('启动gen: {gen}的有效路径path: {path}'.format(gen=current_gen, path=valid_path))
                                         break
 
                             if not valid_path_flag:
@@ -671,9 +673,10 @@ def restore(file):
                                                     net_copy.switch.loc[
                                                         (net_copy.switch['element'] == trans_index[0]) & (
                                                                 net_copy.switch['et'] == 't'), 'closed'] = True
+                                print('当前启动负载',unprocessed_load[unprocessed_load['bus'] == int(current_load)])
                                 unprocessed_load.drop(
                                     unprocessed_load[unprocessed_load['bus'] == int(current_load)].index, inplace=True)
-                                print('success! gen: {gen}, load: {load}: path: {path}'.format(gen=current_gen, load=current_load, path = valid_path))
+                                # print('success! gen: {gen}, load: {load}: path: {path}'.format(gen=current_gen, load=current_load, path = valid_path))
                                 if len(unprocessed_load) == 0:
                                     print('所有负载均已启动')
                                 try:
