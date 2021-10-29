@@ -729,6 +729,7 @@ def restore(file):
                                         powerflow_Inrush = pp.runpp(net_copy)
                                         if net_copy.converged == True:
 
+                                            # 计算inrush power
                                             line_index = net_copy.line[
                                                 (net_copy.line['from_bus'] == valid_path[-2]) &
                                                 (net_copy.line['to_bus'] == valid_path[-1])].index.tolist()
@@ -873,7 +874,6 @@ def restore(file):
                                                                  normalvd]]
                                                     rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                                 else:
-                                                    print(str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'))
                                                     rest_row = [[iteration,
                                                                  str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
                                                                  round(eff_gen_cap, 2),
@@ -901,6 +901,7 @@ def restore(file):
                                                                  normalvd]]
                                                     rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                             else:
+                                                # 负载的第一条数据
                                                 line_index = net_copy.line[
                                                     (net_copy.line['from_bus'] == valid_path[-2]) &
                                                     (net_copy.line['to_bus'] == valid_path[
@@ -956,35 +957,36 @@ def restore(file):
                                                     except IndexError:
                                                         normalvd = 0
 
-                                                    rest_row = [[iteration,
-                                                             str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip(
-                                                                 '[]'),
-                                                             round(eff_gen_cap, 2),
-                                                             round(eff_gen_cap_q, 2),
-                                                             str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
-                                                                 '[]'),
-                                                             round(cranking_power, 2),
-                                                             round(cranking_power_q, 2),
-                                                             net_copy.load.loc[(net_copy.load.bus == int(
-                                                                 current_load)), 'name'].values[0],
-                                                             motor['motor'],
-                                                             round(motor['p_inrush_tot'], 2),
-                                                             round(motor['q_inrush_tot'], 2),
-                                                             round(picked_total_load1, 2),
-                                                             round(picked_total_load1_q, 2),
-                                                             round(picked_steady_load1, 2),
-                                                             round(picked_steady_load1_q, 2),
-                                                             round(picked_steady_load1 + (static_p * random_multi), 2),
-                                                             round(picked_steady_load1_q + (static_q * random_multi),
-                                                                   2),
-                                                             inrush_vd,
-                                                             normalvd]]
-                                                    rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                                rest_row = [[iteration,
+                                                         str(net_copy.gen.loc[(net_copy.gen.in_service == True), 'name'].tolist()).strip(
+                                                             '[]'),
+                                                         round(eff_gen_cap, 2),
+                                                         round(eff_gen_cap_q, 2),
+                                                         str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                             '[]'),
+                                                         round(cranking_power, 2),
+                                                         round(cranking_power_q, 2),
+                                                         net_copy.load.loc[(net_copy.load.bus == int(
+                                                             current_load)), 'name'].values[0],
+                                                         motor['motor'],
+                                                         round(motor['p_inrush_tot'], 2),
+                                                         round(motor['q_inrush_tot'], 2),
+                                                         round(picked_total_load1, 2),
+                                                         round(picked_total_load1_q, 2),
+                                                         round(picked_steady_load1, 2),
+                                                         round(picked_steady_load1_q, 2),
+                                                         round(picked_steady_load1 + (static_p * random_multi), 2),
+                                                         round(picked_steady_load1_q + (static_q * random_multi),
+                                                               2),
+                                                         inrush_vd,
+                                                         normalvd]]
+                                                rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                             try:
                                                 rest_output = rest_output.append(rest_df, ignore_index=False)
                                             except:
                                                 rest_output = rest_df.copy()
 
+                                        # 开启负载，计算潮流
                                         net_copy.load.loc[(net_copy.load['bus'] == int(
                                             current_load)), 'p_mw'] = picked_steady_load1
 
@@ -1028,6 +1030,7 @@ def restore(file):
                                         eff_gen_cap_q = gen_capacity_q - cranking_power_q - processed_load_steadystate_q - processed_load_steadystate_mot_q
 
                                     else:
+                                        # 遍历完了所有的电机之后，就代表load被处理完了。
                                         if not ((sorted_motor['load_bus'] == int(current_load)) &
                                                 (sorted_motor['processed'] == 'N')).any():
                                             load_priority.loc[
@@ -1047,7 +1050,7 @@ def restore(file):
                                         else:
                                             insufficient_capacity = True
 
-                                        break  # 请问这里break有什么意义？
+                                        break
                             total_static_p = 0
                             total_static_q = 0
                             break
