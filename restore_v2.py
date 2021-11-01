@@ -626,7 +626,13 @@ class BlackStartGrid:
                     load_processed = False
                     current_load_completed = False
                     insufficient_capacity = False
-
+                    if len(unprocessed_gen) == 0:
+                        print('发电机全部开启',len(unprocessed_gen) )
+                    if len(unprocessed_load) == 0:
+                        print('负载全部开启', len(unprocessed_load) )
+                    if len(unprocessed_load) == 0 and len(unprocessed_gen) is None:
+                        print('任务完成')
+                        break
                     # step 8&9  Select the loads to pick up
                     for l_index, l_row in self.load_priority.iterrows():
                         if not insufficient_capacity:
@@ -660,8 +666,10 @@ class BlackStartGrid:
                                     if valid_path_flag:
                                         # TODO 存在有多条合理路径得情况需要处理
                                         valid_path = all_paths_arr[i]
-                                        print('1启动load: {load}的有效路径path: {path}'.format(load=current_load,
-                                                                                        path=valid_path))
+                                        print('{i}: 从{gen}启动load: {load}的有效路径path: {path}'.format(i=iteration,
+                                                                                                  gen=current_gen,
+                                                                                                  load=current_load,
+                                                                                                  path=valid_path))
                                         break
                                 if not valid_path_flag:
                                     # 路径中存在未开机的电机或者负载时
@@ -674,8 +682,7 @@ class BlackStartGrid:
                                         if unprocessed_gen_set.intersection(single_path_set) \
                                                 or unprocessed_load_set.intersection(single_path_set_load):
                                             valid_path_flag = False
-                                            # print('gen: {gen} --> load: {load}\npath: {path} '.format(gen=current_load, load=current_load, path=single_path))
-                                        if valid_path_flag:
+                                        else:
                                             for j in range(0, len(single_path) - 1):
                                                 if (net_copy.trafo.loc[
                                                     (net_copy.trafo.hv_bus == single_path[j]) &
@@ -689,7 +696,7 @@ class BlackStartGrid:
                                                     break
                                         if valid_path_flag:
                                             valid_path = all_paths_arr[i]
-                                            print('2启动load: {load}的有效路径path: {path}'.format(load=current_load,
+                                            print('{i}: 从{gen}启动load: {load}的有效路径path: {path}'.format(i=iteration, gen=current_gen, load=current_load,
                                                                                             path=valid_path))
                                             break
 
@@ -765,42 +772,88 @@ class BlackStartGrid:
                                     # print('success! gen: {gen}, load: {load}: path: {path}'.format(gen=current_gen,
                                     #                                                                load=current_load,
                                     #                                                                path=valid_path))
-                                    print(len(unprocessed_load))
-                                    if len(unprocessed_load) == 0:
-                                        print('所有负载均已启动')
+
                                     # 计算负载启动后的结果
                                     # if self.has_motor:
                                     #     self.return_with_motor(net_copy, current_load, eff_gen_cap, eff_gen_cap_q,
                                     #                            valid_path)
                                     # else:
                                     #     self.return_no_motor()
-                                    while True:
-                                        # 计算当前的静态负载
-                                        try:
-                                            static = static_data[(static_data.load_bus == int(current_load)) & (
-                                                    static_data.processed == 'N')].iloc[0]
-                                        except IndexError:
-                                            static = None
-                                        except TypeError:
-                                            static = None
+                                    # 计算当前的静态负载
+                                    try:
+                                        static = static_data[(static_data.load_bus == int(current_load)) & (
+                                                static_data.processed == 'N')].iloc[0]
+                                    except IndexError:
+                                        static = None
+                                    except TypeError:
+                                        static = None
 
-                                        static_p = static['p'] if static is not None else 0
-                                        static_q = static['q'] if static is not None else 0
-                                        if static is not None:
-                                            net_copy.load.loc[
-                                                (net_copy.load['bus'] == current_load), 'in_service'] = True
-                                            picked_steady_load1 = static_p
-                                            picked_steady_load1_q = static_q
-                                            random_multi = round(random.uniform(0.05, 0.1), 2)
-                                            pp.runpp(net_copy)
-                                            if net_copy.converged:
-                                                # 如果开启这个负载后能够潮流收敛， 写入开启时的数据
-                                                iteration = iteration + 1
-                                                rest_row = None
-                                                rest_df = None
-                                                normalvd = calc_vd(net_copy, valid_path)
-                                                if len(rest_output) == 0:
-                                                    # 写入第一条数据
+                                    static_p = static['p'] if static is not None else 0
+                                    static_q = static['q'] if static is not None else 0
+                                    if static is not None:
+                                        # 开启负载
+                                        net_copy.load.loc[
+                                            (net_copy.load['bus'] == current_load), 'in_service'] = True
+                                        picked_steady_load1 = static_p
+                                        picked_steady_load1_q = static_q
+                                        random_multi = round(random.uniform(0.05, 0.1), 2)
+                                        pp.runpp(net_copy)
+                                        # 如果开启这个负载后能够潮流收敛， 写入开启时的数据
+                                        if net_copy.converged:
+                                            iteration = iteration + 1
+                                            rest_row = None
+                                            rest_df = None
+                                            normalvd = calc_vd(net_copy, valid_path)
+                                            if len(rest_output) == 0:
+                                                # 写入第一条数据
+                                                rest_row = [[
+                                                    iteration,
+                                                    str(net_copy.gen.loc[(net_copy.gen.in_service == True),
+                                                                         'name'].tolist()).strip('[]'),
+                                                    round(eff_gen_cap, 2),
+                                                    round(eff_gen_cap_q, 2),
+                                                    '-' if next_gen is None else
+                                                    str(c_pow.loc[c_pow['bus'] == next_gen,
+                                                                  'gen_name'].tolist()).strip('[]'),
+                                                    round(cranking_power, 2),
+                                                    round(cranking_power_q, 2),
+                                                    net_copy.load.loc[(net_copy.load.bus == int(current_load)),
+                                                                      'name'].values[0],
+                                                    round(picked_steady_load1, 2),
+                                                    round(picked_steady_load1_q, 2),
+                                                    round(picked_steady_load1 + (
+                                                            static_p * random_multi), 2),
+                                                    round(picked_steady_load1_q + (
+                                                            static_q * random_multi), 2),
+                                                    normalvd
+                                                ]]
+                                                rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                            else:
+                                                if rest_output.loc[rest_output['cranking_power_provided_gen'] ==
+                                                                   str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                                       '[]')].any().any():
+                                                    # 如果没有新开的gen
+                                                    rest_row = [[
+                                                        iteration,
+                                                        '-',
+                                                        round(eff_gen_cap, 2),
+                                                        round(eff_gen_cap_q, 2),
+                                                        '-',
+                                                        '-',
+                                                        '-',
+                                                        net_copy.load.loc[(net_copy.load.bus == int(
+                                                            current_load)), 'name'].values[0],
+                                                        round(picked_steady_load1, 2),
+                                                        round(picked_steady_load1_q, 2),
+                                                        round(picked_steady_load1 + (
+                                                                static_p * random_multi), 2),
+                                                        round(picked_steady_load1_q + (
+                                                                static_q * random_multi), 2),
+                                                        normalvd
+                                                    ]]
+                                                    rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                                else:
+                                                    # 开启新电机
                                                     rest_row = [[
                                                         iteration,
                                                         str(net_copy.gen.loc[(net_copy.gen.in_service == True),
@@ -823,209 +876,34 @@ class BlackStartGrid:
                                                         normalvd
                                                     ]]
                                                     rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
-                                                else:
-                                                    if rest_output.loc[rest_output['cranking_power_provided_gen'] ==
-                                                                       str(c_pow.loc[c_pow[
-                                                                                         'bus'] == next_gen, 'gen_name'].tolist()).strip(
-                                                                           '[]')].any().any():
-                                                        # 如果没有新开的gen
-                                                        rest_row = [[
-                                                            iteration,
-                                                            '-',
-                                                            round(eff_gen_cap, 2),
-                                                            round(eff_gen_cap_q, 2),
-                                                            '-',
-                                                            '-',
-                                                            '-',
-                                                            net_copy.load.loc[(net_copy.load.bus == int(
-                                                                current_load)), 'name'].values[0],
-                                                            round(picked_steady_load1, 2),
-                                                            round(picked_steady_load1_q, 2),
-                                                            round(picked_steady_load1 + (
-                                                                    static_p * random_multi), 2),
-                                                            round(picked_steady_load1_q + (
-                                                                    static_q * random_multi), 2),
-                                                            normalvd
-                                                        ]]
-                                                        rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
-                                                    else:
-                                                        # 开启新电机
-                                                        rest_row = [[
-                                                            iteration,
-                                                            str(net_copy.gen.loc[(net_copy.gen.in_service == True),
-                                                                                 'name'].tolist()).strip('[]'),
-                                                            round(eff_gen_cap, 2),
-                                                            round(eff_gen_cap_q, 2),
-                                                            '-' if next_gen is None else
-                                                            str(c_pow.loc[c_pow['bus'] == next_gen,
-                                                                          'gen_name'].tolist()).strip('[]'),
-                                                            round(cranking_power, 2),
-                                                            round(cranking_power_q, 2),
-                                                            net_copy.load.loc[(net_copy.load.bus == int(current_load)),
-                                                                              'name'].values[0],
-                                                            round(picked_steady_load1, 2),
-                                                            round(picked_steady_load1_q, 2),
-                                                            round(picked_steady_load1 + (
-                                                                    static_p * random_multi), 2),
-                                                            round(picked_steady_load1_q + (
-                                                                    static_q * random_multi), 2),
-                                                            normalvd
-                                                        ]]
-                                                        rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                            try:
+                                                rest_output = rest_output.append(rest_df, ignore_index=False)
+                                            except:
+                                                rest_output = rest_df.copy()
 
-                                            # 开启负载
+                                        static_data.loc[(static_data['load_bus'] == int(current_load)) &
+                                                        (static_data['id'] == static['id']), 'processed'] = 'Y'
+                                        static_data.loc[(static_data['load_bus'] == int(current_load)) &
+                                                        (static_data['id'] == static['id']), 'p'] = static_p + (
+                                                static_p * random_multi)
+                                        static_data.loc[(static_data['load_bus'] == int(current_load)) &
+                                                        (static_data['id'] == static['id']), 'q'] = static_q + (
+                                                static_q * random_multi)
+                                        cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
+                                        cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
+                                    else:
+                                        print('这条路径，没有未开启的负载了')
+                                        break
+        print(rest_output)
+        return rest_output
 
-
-    def return_with_motor(self,
-                          net_copy,
-                          current_load,
-                          next_gen, eff_gen_cap,
-                          eff_gen_cap_q,
-                          valid_path,
-                          iteration,
-                          rest_col_names
-                          ):
-        static_data = self.static_data
-        sorted_motor = self.motor_info
-        while True:
-            # 判断当前负载是否开启，当前负载
-            try:
-                static = static_data[(static_data.load_bus == int(current_load)) & (
-                        static_data.processed == 'N')].iloc[0]
-            except IndexError:
-                static = None
-            except TypeError:
-                static = None
-            if static is not None:
-                static_p = static['p']
-                static_q = static['q']
-            else:
-                static_p = 0
-                static_q = 0
-
-            try:
-                motor = sorted_motor[
-                    (sorted_motor.load_bus == int(current_load)) &
-                    (sorted_motor.processed == 'N') &
-                    (np.floor(sorted_motor.p_inrush_tot + static_p) + 5 < math.ceil(
-                        eff_gen_cap)) &
-                    (np.floor(sorted_motor.q_inrush_tot + static_q) + 5 < math.ceil(
-                        eff_gen_cap_q))].iloc[0]
-            except IndexError:
-                motor = None
-            except TypeError:
-                motor = None
-
-            if motor is not None:
-                # 启动current_load
-                net_copy.load.loc[(net_copy.load['bus'] == current_load), 'in_service'] = True
-                # 启动负载瞬间的功率
-                picked_total_load1 = motor['p_inrush_tot'] + static_p
-                picked_total_load1_q = motor['q_inrush_tot'] + static_q
-                # 计算current_load在启动了部分电机之后的有功，无功，实际功率
-                net_copy.load.loc[(net_copy.load['bus'] == int(
-                    current_load)), 'p_mw'] = picked_total_load1 + sum(
-                    sorted_motor.loc[(sorted_motor.load_bus ==
-                                      int(current_load)) & (
-                                             sorted_motor.processed == 'Y'), 'p_total'])
-                net_copy.load.loc[(net_copy.load['bus'] == int(
-                    current_load)), 'q_mvar'] = picked_total_load1_q + sum(
-                    sorted_motor.loc[(sorted_motor.load_bus ==
-                                      int(current_load)) & (
-                                             sorted_motor.processed == 'Y'), 'q_total'])
-                net_copy.load.sn_mva = np.sqrt(
-                    np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
-                # 启动到稳定之后的功率
-                picked_steady_load1 = static_p + motor['p_total']
-                picked_steady_load1_q = static_q + motor['q_total']
-                random_multi = round(random.uniform(0.05, 0.1), 2)
-                powerflow_Inrush = pp.runpp(net_copy)
-                # 如果潮流能够收敛，纪录此次的开启负载的信息
-                if net_copy.converged == True:
-                    # 负载的
-                    inrush_vd = calc_vd(net_copy, valid_path)
-                    net_copy.load.loc[(net_copy.load['bus'] == int(
-                        current_load)), 'q_mvar'] = picked_steady_load1_q + sum(
-                        sorted_motor.loc[(sorted_motor.load_bus ==
-                                          int(current_load)) & (
-                                                 sorted_motor.processed == 'Y'), 'q_total'])
-                    net_copy.load.sn_mva = np.sqrt(
-                        np.power(net_copy.load.p_mw, 2) + np.power(net_copy.load.q_mvar, 2))
-                    powerflow_Inrush = pp.runpp(net_copy)
-                    iteration = iteration + 1
-                    rest_row = None
-                    rest_df = None
-                    if not self.rest_output:
-                        # 计算电机开机后，潮流再次收敛时的稳态电压降
-                        normalvd = calc_vd(net_copy, valid_path)
-                        c_pow = self.c_pow
-                        if self.rest_output.loc[
-                            self.rest_output['cranking_power_provided_gen'] ==
-                            str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
-                                '[]')].any().any():
-                            #
-                            rest_row = [[iteration,
-                                         '-',
-                                         round(eff_gen_cap, 2),
-                                         round(eff_gen_cap_q, 2),
-                                         '-',
-                                         '-',
-                                         '-',
-                                         net_copy.load.loc[(net_copy.load.bus == int(
-                                             current_load)), 'name'].values[0],
-                                         motor['motor'],
-                                         round(motor['p_inrush_tot'], 2),
-                                         round(motor['q_inrush_tot'], 2),
-                                         round(picked_total_load1, 2),
-                                         round(picked_total_load1_q, 2),
-                                         round(picked_steady_load1, 2),
-                                         round(picked_steady_load1_q, 2),
-                                         round(picked_steady_load1 + (
-                                                 static_p * random_multi), 2),
-                                         round(picked_steady_load1_q + (
-                                                 static_q * random_multi), 2),
-                                         inrush_vd,
-                                         normalvd]]
-                            rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
-                        # else:
-                        # 可以开启下一个电机了
-                        # rest_row = [[iteration,
-                        #              str(net_copy.gen.loc[
-                        #                      (net_copy.gen.in_service == True), 'name'].tolist()).strip('[]'),
-                        #              round(eff_gen_cap, 2),
-                        #              round(eff_gen_cap_q, 2),
-                        #              '-' if next_gen is None else
-                        #              str(c_pow.loc[c_pow[
-                        #                                'bus'] == next_gen, 'gen_name'].tolist()).strip(
-                        #                  '[]'),
-                        #              round(cranking_power, 2),
-                        #              round(cranking_power_q, 2),
-                        #              net_copy.load.loc[(net_copy.load.bus == int(
-                        #                  current_load)), 'name'].values[0],
-                        #              motor['motor'],
-                        #              round(motor['p_inrush_tot'], 2),
-                        #              round(motor['q_inrush_tot'], 2),
-                        #              round(picked_total_load1, 2),
-                        #              round(picked_total_load1_q, 2),
-                        #              round(picked_steady_load1, 2),
-                        #              round(picked_steady_load1_q, 2),
-                        #              round(picked_steady_load1 + (
-                        #                      static_p * random_multi), 2),
-                        #              round(picked_steady_load1_q + (
-                        #                      static_q * random_multi), 2),
-                        #              inrush_vd,
-                        #              normalvd]]
-                        # rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
-
-    def return_no_motor(self):
-        pass
 
     def restore(self):
         pp.runpp(self.net)
         # 获取从发电机去load的路径信息
         bs_result_sorted, abs_path, short_path = self.get_start_order()
         # 开始启动电机
-        self.start_grid(bs_result_sorted, short_path)
+        print(self.start_grid(bs_result_sorted, short_path))
 
 
 if __name__ == '__main__':

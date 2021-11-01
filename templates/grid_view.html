@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Grid View {% endblock %}
+{% block page_content %}
+<script src="/static/js/three.min.js"></script>
+<script src="/static/js/OrbitControls.js"></script>
+<div class="container" style="margin: 0px auto">
+    <div class="col-lg-12">
+      <div id="viewer" style="height: 800px"></div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<script>
+    $('#main_container').show()
+    var viewer,container,camera,scene,renderer;
+    var controls,mesh;
+    var count = 0;
+    init();
+    var animationStartTime = new Date().getTime();
+    animate();
+    const bus = [
+        {
+            id: 1,
+            x: 100,
+            y: 100,
+            hasGen: true,
+            hasLoad: false
+        },];
+    const gen = [];
+    const load = []
+
+    function init() {
+
+        viewer = document.getElementById('viewer');
+
+        camera = new THREE.PerspectiveCamera(60, viewer.clientWidth / viewer.clientHeight, 10, 50000);
+        camera.position.set(0, 0, 50);
+        camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+        scene = new THREE.Scene();
+        var grid = new THREE.GridHelper(50000, 500, 0xffffff, 0x00ffff);
+        grid.rotation.x = Math.PI / 2; //for x-y grid
+        scene.add(grid);
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setClearColor(0x000000);
+        renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+        controls = new THREE.OrbitControls(camera,renderer.domElement);
+
+        // var geometry = new THREE.CubeGeometry(300, 50, 100);
+        // var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+        // mesh = new THREE.Mesh( geometry, material );
+        // scene.add( mesh );
+        var geometry = new THREE.BufferGeometry();
+        // 创建一个简单的矩形. 在这里我们左上和右下顶点被复制了两次。
+        // 因为在两个三角面片里，这两个顶点都需要被用到。
+        var vertices = new Float32Array( [
+            -1.0, -0.5,  0.5,
+             1.0, -1.0,  1.0,
+             1.0,  1.0,  1.0,
+
+            -2.0, -0.5,  0.5,
+             2.0, -1.0,  1.0,
+             2.0,  1.0,  1.0,
+        ] );
+
+        // itemSize = 3 因为每个顶点都是一个三元组。
+        geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+        var material = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
+        var mesh = new THREE.Mesh( geometry, material );
+        scene.add( mesh )
+        viewer.innerHTML = "";
+        viewer.appendChild(renderer.domElement);
+
+        var axis = new THREE.AxisHelper(1000);
+        scene.add(axis)
+        axis.position.set(0,0,0)
+    }
+
+    function animate(){
+        requestAnimationFrame(animate);
+
+        var currentTime = new Date().getTime();
+        count = Math.round((currentTime - animationStartTime)/1000*10);
+
+        // mesh.position.x = 10;
+        // mesh.position.y = 10;
+        render();
+
+    }
+    function render() {
+    controls.update();
+    renderer.render(scene, camera);
+    }
+
+</script>
+{% endblock %}
