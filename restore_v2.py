@@ -124,6 +124,7 @@ class BlackStartGrid:
         self.c_pow = self.calculate_gen_cap()
         self.result = None
         self.rest_output = None
+        self.open_path = []
 
     class EdgeGraph:
         """
@@ -577,10 +578,13 @@ class BlackStartGrid:
             for rest_var in range(0, len(restoration_path)):
                 # 存在未开启电机
                 if restoration_path[rest_var] not in list(available_gen.bus):
-                    current_gen = restoration_path[rest_var]
+                    if restoration_path[rest_var] in list(unprocessed_gen.bus):
+                        current_gen = restoration_path[rest_var]
+
                     # 判断是否路径已到达目标gen
                     if rest_var < len(restoration_path) - 1:
-                        next_gen = restoration_path[rest_var + 1]
+                        if restoration_path[rest_var + 1] in short_path['path']:
+                            next_gen = restoration_path[rest_var + 1]
                     else:
                         sp = short_path['path']
                         if sp.index(current_gen) < len(sp) - 1:
@@ -626,22 +630,57 @@ class BlackStartGrid:
                     load_processed = False
                     current_load_completed = False
                     insufficient_capacity = False
-                    if len(unprocessed_gen) == 0:
-                        print('发电机全部开启',len(unprocessed_gen) )
-                    if len(unprocessed_load) == 0:
-                        print('负载全部开启', len(unprocessed_load) )
-                    if len(unprocessed_load) == 0 and len(unprocessed_gen) is None:
-                        print('任务完成')
-                        break
+                    # if len(unprocessed_gen) == 0:
+                    #     print('发电机全部开启', len(unprocessed_gen))
+                    # if len(unprocessed_load) == 0:
+                    #     print('负载全部开启', len(unprocessed_load))
+
                     # step 8&9  Select the loads to pick up
                     for l_index, l_row in self.load_priority.iterrows():
                         if not insufficient_capacity:
                             current_load = l_row['load_bus']
                         else:
                             break
-                        #
+                        random_multi = round(random.uniform(0.05, 0.1), 2)
+                        if not unprocessed_load[unprocessed_load['bus'] == current_load].any().any():
+                            # print('当前负载已经开启了')
+                            if len(unprocessed_gen) == 0:
+                                print('发电机全部打开')
+                                pp.runpp(net_copy)
+                                if net_copy.converged:
+                                    # 开启新电机
+                                    iteration = iteration + 1
+                                    normalvd = calc_vd(net_copy, short_path['path'])
+                                    rest_row = [[
+                                        iteration,
+                                        str(net_copy.gen.loc[(net_copy.gen.in_service == True),
+                                                             'name'].tolist()).strip('[]'),
+                                        round(eff_gen_cap, 2),
+                                        round(eff_gen_cap_q, 2),
+                                        '-',
+                                        round(cranking_power, 2),
+                                        round(cranking_power_q, 2),
+                                        net_copy.load.loc[(net_copy.load.bus == int(current_load)),
+                                                          'name'].values[0],
+                                        round(picked_steady_load1, 2),
+                                        round(picked_steady_load1_q, 2),
+                                        round(picked_steady_load1 + (
+                                                static_p * random_multi), 2),
+                                        round(picked_steady_load1_q + (
+                                                static_q * random_multi), 2),
+                                        normalvd
+                                    ]]
+                                    rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
+                                    try:
+                                        rest_output = rest_output.append(rest_df, ignore_index=False)
+                                    except:
+                                        rest_output = rest_df.copy()
+                                break
+                            else:
+                                continue
                         for eachload_paths in self.gen_load_all_paths:
                             # 从gen 去 load
+
                             if ((available_gen[available_gen['bus'] == eachload_paths.get('gen')].any().any())
                                     & (eachload_paths.get('bus') == current_load)):
                                 # 找到 从current_gen去current_load的path
@@ -664,12 +703,12 @@ class BlackStartGrid:
                                         valid_path_flag = False
                                         # print('路径中存在未启动的电机或负载')
                                     if valid_path_flag:
-                                        # TODO 存在有多条合理路径得情况需要处理
                                         valid_path = all_paths_arr[i]
-                                        print('{i}: 从{gen}启动load: {load}的有效路径path: {path}'.format(i=iteration,
-                                                                                                  gen=current_gen,
-                                                                                                  load=current_load,
-                                                                                                  path=valid_path))
+
+                                        # print('{i}: 从{gen}启动load: {load}的有效路径path: {path}'.format(i=iteration,
+                                        #                                                           gen=current_gen,
+                                        #                                                           load=current_load,
+                                        #                                                           path=valid_path))
                                         break
                                 if not valid_path_flag:
                                     # 路径中存在未开机的电机或者负载时
@@ -696,8 +735,10 @@ class BlackStartGrid:
                                                     break
                                         if valid_path_flag:
                                             valid_path = all_paths_arr[i]
-                                            print('{i}: 从{gen}启动load: {load}的有效路径path: {path}'.format(i=iteration, gen=current_gen, load=current_load,
-                                                                                            path=valid_path))
+                                            # print('{i}: 从{gen}启动load: {load}的有效路径path: {path}'.format(i=iteration,
+                                            #                                                           gen=current_gen,
+                                            #                                                           load=current_load,
+                                            #                                                           path=valid_path))
                                             break
 
                                 if not valid_path_flag:
@@ -772,14 +813,6 @@ class BlackStartGrid:
                                     # print('success! gen: {gen}, load: {load}: path: {path}'.format(gen=current_gen,
                                     #                                                                load=current_load,
                                     #                                                                path=valid_path))
-
-                                    # 计算负载启动后的结果
-                                    # if self.has_motor:
-                                    #     self.return_with_motor(net_copy, current_load, eff_gen_cap, eff_gen_cap_q,
-                                    #                            valid_path)
-                                    # else:
-                                    #     self.return_no_motor()
-                                    # 计算当前的静态负载
                                     try:
                                         static = static_data[(static_data.load_bus == int(current_load)) & (
                                                 static_data.processed == 'N')].iloc[0]
@@ -796,7 +829,6 @@ class BlackStartGrid:
                                             (net_copy.load['bus'] == current_load), 'in_service'] = True
                                         picked_steady_load1 = static_p
                                         picked_steady_load1_q = static_q
-                                        random_multi = round(random.uniform(0.05, 0.1), 2)
                                         pp.runpp(net_copy)
                                         # 如果开启这个负载后能够潮流收敛， 写入开启时的数据
                                         if net_copy.converged:
@@ -889,21 +921,34 @@ class BlackStartGrid:
                                         static_data.loc[(static_data['load_bus'] == int(current_load)) &
                                                         (static_data['id'] == static['id']), 'q'] = static_q + (
                                                 static_q * random_multi)
+                                        self.open_path.append({
+                                            'from_gen': self.bus_to_name('gen', eachload_paths.get('gen')),
+                                            'open_load': self.bus_to_name('load', current_load),
+                                            'open_path': valid_path
+                                        })
+                                        print(self.open_path)
                                         cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
                                         cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
                                     else:
-                                        print('这条路径，没有未开启的负载了')
+                                        # print('这条路径，没有未开启的负载了')
                                         break
-        print(rest_output)
+                if len(unprocessed_load) == 0 and len(unprocessed_gen) is None:
+                    print('任务完成')
+                    break
         return rest_output
 
+    def bus_to_name(self, opt, bus):
+        net = self.net
+        name = str(net[opt].loc[net[opt]['bus'] == bus, 'name'].tolist()).strip('[]')
+        return name
 
     def restore(self):
         pp.runpp(self.net)
         # 获取从发电机去load的路径信息
         bs_result_sorted, abs_path, short_path = self.get_start_order()
         # 开始启动电机
-        print(self.start_grid(bs_result_sorted, short_path))
+        self.result = self.start_grid(bs_result_sorted, short_path)
+        print(self.open_path)
 
 
 if __name__ == '__main__':
