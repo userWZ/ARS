@@ -125,6 +125,13 @@ class BlackStartGrid:
         self.result = None
         self.rest_output = None
         self.open_path = []
+        self.load_info = []
+        self.bus_info = []
+        self.gen_info = []
+        self.res_gen = []
+        self.res_bus = []
+        self.res_load = []
+        self.res_line = []
 
     class EdgeGraph:
         """
@@ -599,6 +606,13 @@ class BlackStartGrid:
                     available_gen['q'] = pd.eval(np.sqrt(available_gen['sn_mva'] ** 2 - available_gen['p_mw'] ** 2))
                     # 更新未开机发电机数组
                     cond = unprocessed_gen['name'].isin(available_gen['name'])
+                    if cond.any():
+                        self.gen_info.append({
+                            'iteration': iteration,
+                            'gen': self.bus_to_name('gen', current_gen),
+                            'open_path': [node+1 for node in eachrow.get('path')],
+                            'imp': eachrow['imp']
+                        })
                     unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
 
                     # Calculate Available generation capacity, processed load and effective generation capability
@@ -630,10 +644,10 @@ class BlackStartGrid:
                     load_processed = False
                     current_load_completed = False
                     insufficient_capacity = False
-                    # if len(unprocessed_gen) == 0:
-                    #     print('发电机全部开启', len(unprocessed_gen))
-                    # if len(unprocessed_load) == 0:
-                    #     print('负载全部开启', len(unprocessed_load))
+                    if len(unprocessed_gen) == 0:
+                        print('发电机全部开启', len(unprocessed_gen))
+                    if len(unprocessed_load) == 0:
+                        print('负载全部开启', len(unprocessed_load))
 
                     # step 8&9  Select the loads to pick up
                     for l_index, l_row in self.load_priority.iterrows():
@@ -833,6 +847,10 @@ class BlackStartGrid:
                                         # 如果开启这个负载后能够潮流收敛， 写入开启时的数据
                                         if net_copy.converged:
                                             iteration = iteration + 1
+                                            self.res_gen.append(net_copy.res_gen.to_json(orient = "index"))
+                                            self.res_bus.append(net_copy.res_bus.to_json(orient = "index"))
+                                            self.res_load.append(net_copy.res_load.to_json(orient = "index"))
+                                            self.res_line.append(net_copy.res_line.to_json(orient = "index"))
                                             rest_row = None
                                             rest_df = None
                                             normalvd = calc_vd(net_copy, valid_path)
@@ -922,11 +940,13 @@ class BlackStartGrid:
                                                         (static_data['id'] == static['id']), 'q'] = static_q + (
                                                 static_q * random_multi)
                                         self.open_path.append({
+                                            'iteration': iteration,
                                             'from_gen': self.bus_to_name('gen', eachload_paths.get('gen')),
                                             'open_load': self.bus_to_name('load', current_load),
-                                            'open_path': valid_path
+                                            'open_path': [node + 1 for node in valid_path],
+                                            'imp': self.get_path_imp(valid_path)
                                         })
-                                        print(self.open_path)
+
                                         cranking_power = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow'].sum())
                                         cranking_power_q = abs(c_pow.loc[c_pow['bus'] == next_gen, 'pow_q'].sum())
                                     else:
@@ -948,7 +968,21 @@ class BlackStartGrid:
         bs_result_sorted, abs_path, short_path = self.get_start_order()
         # 开始启动电机
         self.result = self.start_grid(bs_result_sorted, short_path)
-        print(self.open_path)
+        # print(self.open_path)
+        print(self.res_gen)
+        print(self.res_bus)
+        print(self.res_load)
+        print(self.res_line)
+        return self.result, abs_path
+
+    def get_path_imp(self, path):
+        graph = self.graph
+        imp = 0
+        for i in range(0, len(path) - 1):
+            cur_node = path[i]
+            next_node = path[i+1]
+            imp = imp + self.graph.weights[(cur_node, next_node)]
+        return imp
 
 
 if __name__ == '__main__':

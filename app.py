@@ -4,6 +4,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename  # web底层框架
 from restore_v2 import *
+from restore import *
 import time
 import json
 
@@ -19,8 +20,8 @@ def index():
     return render_template('upload.html')
 
 
-@app.route('/data', methods=['GET', 'POST'])
-def data():
+@app.route('/mdata', methods=['GET', 'POST'])
+def mdata():
     if request.method == 'POST':
         file = request.files['upload-file']
         file = 'IEEE30_2.xlsx'
@@ -34,11 +35,25 @@ def data():
         # filename = os.path.join(app.config['UPLOAD_FOLDER']) + image.filename
         # print("file", filename)
         return render_template('data.html', data=data, data1=path)
-    else:
-        file = 'IEEE30.xlsx'
+
+@app.route('/data', methods=['GET', 'POST'])
+def data():
+    if request.method == 'POST':
+        file = request.files['upload-file']
+        if not file:
+            file = 'IEEE30_2.xlsx'
+        if not request.files['upload-image']:
+            img = "../static/IEEE30.png"
         Black_Start = BlackStartGrid(file)
         data, path = Black_Start.restore()
-        return render_template('data.html', data=data, data1=path)
+        return render_template('new_data.html',
+                               data=data,
+                               path=path,
+                               img=img,
+                               open_path=Black_Start.open_path,
+                               gen_info=Black_Start.gen_info)
+
+
 
 @app.route('/view', methods=['Get', 'Post'])
 def grid_view():

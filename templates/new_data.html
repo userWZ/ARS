@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Results Page{% endblock %}
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script> -->
+<script src="../static/js/jquery.min.js"></script>
+<link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+      rel="stylesheet" id="bootstrap-css">
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+
+{% block page_content %}
+<!-- <div class="card text-white bg-primary mb-3" style="max-width: 18rem;">
+ <div class="card-header">Current Load</div>
+ <div class="card-body">
+ <p class="card-text"></p>
+ </div>
+</div> -->
+
+<body>
+<!-- <img src= "{{ data2 }}" alt="Circuit Image"> -->
+<div class="container-fluid">
+    <div class="row">
+        <div class = "col-sm-5">
+            <p><h1>发电机开启顺序:</h1> </p>
+            {% for sp1 in path %}
+            {% if loop.last %}
+            <b>{{ sp1 }} </b>
+            {% else %}
+            <b>{{ sp1 }} ,</b>
+            {% endif %}
+            {% endfor %}
+            <h3>Abbreviations:</h3>
+            <p>P<sub>AVA</sub>_mw : Available real power at a given point during restoration </p>
+            <p> </p>Q<sub>AVA</sub>_mvar : Available reactive power at a given point during </p>
+            <p>P<sub>CR</sub>_mw Cranking power of generator’s real power </p>
+            <p>Q<sub>CR</sub>_mvar Cranking power of generator’s reactive power </p>
+            <p>P<sub>LI</sub>_mw Active power of induction motor when inrush current is observed
+            </p>
+            121
+            <p>Q<sub>LI</sub>_mvar Reactive power of induction motor when inrush current is observed
+            </p>
+            <p>P_mw Active power of the load appeared after the switch is closed </p>
+            <p>Q_mw Reactive power of the load appeared after the switch is closed </p>
+            <p>L<sub>P</sub>_mw Total active power of the picked loads after it reaches steady state </p>
+            <p>L<sub>Q</sub>_mvar Total reactive power of the picked loads after it reaches steady state
+            </p>
+            <p>%VD Voltage Drop</p>
+            </p>
+        </div>
+        <div class = "col-sm-2">
+            <img src={{img}} width = "760" height = "512">
+        </div>
+    </div>
+    <div>
+        <p><h2>黑启动流程</h2></p>
+        <table id="tbl" class="table table-striped table-bordered" style="width:100%">
+            <thead>
+            <tr>
+                <th></th>
+                <th></th>
+                <th colspan="2" scope="colgroup">Available power</th>
+                <th>Generator to which cranking power is provided</th>
+                <th colspan="2" scope="colgroup">Cranking power values</th>
+                <th></th>
+                <th colspan="2" scope="colgroup">Power appeared after the switch is closed</th>
+                <th colspan="1" scope="colgroup">% Voltage Drop</th>
+            </tr>
+            <tr>
+                <th> iteration </th>
+                <th> Gen_turned_on </th>
+                <th> P<sub>AVA</sub>_mw </th>
+                <th> Q<sub>AVA</sub>_mvar </th>
+                <th> Cr_pwr_to_gen </th>
+                <th> P<sub>CR</sub>_mw </th>
+                <th> Q<sub>CR</sub>_mvar </th>
+                <th> Load_Name </th>
+                <th> P_mw </th>
+                <th> Q_mw </th>
+
+                <th> %VD<sub>Steady State</sub> </th>
+
+            </tr>
+            </thead>
+            <tbody id = "tbody2">
+            {% for i,row in data.iterrows() %}
+            <tr>
+                <td> {{ row.iteration|int }}</td>
+                <td> {{ row.gen_turned_on }}</td>
+                <td> {{ row.eff_gen_cap_p }}</td>
+                <td> {{ row.eff_gen_cap_q }}</td>
+                <td> {{ row.cranking_power_provided_gen }}</td>
+                <td> {{ row.cranking_power_p }}</td>
+                <td> {{ row.cranking_power_q }}</td>
+                <td> {{ row.Load_Name }}</td>
+                <td> {{ row.p_mw }}</td>
+                <td> {{ row.q_mw }}</td>
+                <td> {{ row.Voltage_Drop_steady }}%</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <p><h2>负载开启信息</h2></p>
+        <table id="tb2" class="table table-striped table-bordered" style="width:100%">
+            <thead>
+            <tr>
+                <th> 开启回合 </th>
+                <th> 出发的电机 </th>
+                <th> 开启的负载 </th>
+                <th> 开启路径 </th>
+                <th> 路径总阻抗 </th>
+
+            </tr>
+            </thead>
+            <tbody id = "tbody">
+            {% for row in open_path %}
+            <tr>
+                <td> {{ row.iteration|int }}</td>
+                <td> {{ row.from_gen }}</td>
+                <td> {{ row.open_load }}</td>
+                <td> {{ row.open_path }}</td>
+                <td> {{ row.imp }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <p><h2>电机开启信息</h2></p>
+        <table id="tb3" class="table table-striped table-bordered" style="width:100%">
+            <thead>
+            <tr>
+                <th> 开启回合 </th>
+                <th> 开启的电机 </th>
+                <th> 开启路径 </th>
+                <th> 路径总阻抗 </th>
+            </tr>
+            </thead>
+            <tbody id = "tbody3">
+            {% for row in gen_info %}
+            <tr>
+                <td> {{ row.iteration|int }}</td>
+                <td> {{ row.gen }}</td>
+                <td> {{ row.open_path }}</td>
+                <td> {{ row.imp }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+{% endblock %}
