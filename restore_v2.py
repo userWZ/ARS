@@ -122,16 +122,29 @@ class BlackStartGrid:
         self.graph, self.g, self.gen_load_all_paths = self.get_path_info()
         self.static_data = self.get_static_load_info()
         self.c_pow = self.calculate_gen_cap()
+        self.Res_info = None
         self.result = None
         self.rest_output = None
         self.open_path = []
         self.load_info = []
         self.bus_info = []
         self.gen_info = []
-        self.res_gen = []
-        self.res_bus = []
-        self.res_load = []
-        self.res_line = []
+
+    class Result:
+        def __init__(self, item_num, net):
+            self.item_num = item_num
+            self.bus_static = self.get_static_info(net, 'bus')
+            self.gen_static = self.get_static_info(net, 'gen')
+            self.line_static = self.get_static_info(net, 'line')
+            self.load_static = self.get_static_info(net, 'load')
+
+        def get_static_info(self, static_info, type):
+            static = static_info + type + self.item_num
+            return static
+
+        def get_item_res(self, res):
+            #修改json, 并加入动态信息
+            pass
 
     class EdgeGraph:
         """
@@ -209,6 +222,7 @@ class BlackStartGrid:
 
     def creat_net(self):
         load_priority = None
+        item_num = dict()
         if self.file:
             # 这里是函数中使用pp部分
             net = pp.create_empty_network()
@@ -220,7 +234,7 @@ class BlackStartGrid:
 
             for index, row in exc_bus.iterrows():
                 pp.create_bus(net, vn_kv=row['vn_kv'], name=row['name'], in_service=True)
-
+            item_num['bus'] = len(exc_bus)
             # Creating External grid
             exc_grid = pd.read_excel(restoration_file, sheet_name='externalgrid')
 
@@ -255,6 +269,7 @@ class BlackStartGrid:
                     slack=row['slack']
                 )
             # Creating Loads
+            item_num['gen'] = len(exc_gen)
             dat = []
             exc_load = pd.read_excel(restoration_file, sheet_name='load')
             for index, row in exc_load.iterrows():
@@ -271,7 +286,7 @@ class BlackStartGrid:
                     in_service=True
                 )
                 dat.append([row['bus'] - 1, row['priority']])
-
+            item_num['load'] = len(exc_load)
             # Creating Lines
             exc_line = pd.read_excel(restoration_file, sheet_name='line')
             for index, row in exc_line.iterrows():
@@ -287,7 +302,7 @@ class BlackStartGrid:
                     name=row['name'],
                     in_service=True
                 )
-
+            item_num['line'] = len(exc_line)
             # Creating Transformers
             exc_trans = pd.read_excel(restoration_file, sheet_name='transformer')
             for index, row in exc_trans.iterrows():
@@ -336,7 +351,7 @@ class BlackStartGrid:
 
         else:
             net = pn.case_ieee30()
-
+        self.Res_info = self.Result(item_num, net)
         return net, load_priority
 
     def creat_motor_load(self):
@@ -610,7 +625,7 @@ class BlackStartGrid:
                         self.gen_info.append({
                             'iteration': iteration,
                             'gen': self.bus_to_name('gen', current_gen),
-                            'open_path': [node+1 for node in eachrow.get('path')],
+                            'open_path': [node + 1 for node in eachrow.get('path')],
                             'imp': eachrow['imp']
                         })
                     unprocessed_gen = unprocessed_gen.drop(unprocessed_gen[cond].index)
@@ -847,10 +862,6 @@ class BlackStartGrid:
                                         # 如果开启这个负载后能够潮流收敛， 写入开启时的数据
                                         if net_copy.converged:
                                             iteration = iteration + 1
-                                            self.res_gen.append(net_copy.res_gen.to_json(orient = "index"))
-                                            self.res_bus.append(net_copy.res_bus.to_json(orient = "index"))
-                                            self.res_load.append(net_copy.res_load.to_json(orient = "index"))
-                                            self.res_line.append(net_copy.res_line.to_json(orient = "index"))
                                             rest_row = None
                                             rest_df = None
                                             normalvd = calc_vd(net_copy, valid_path)
@@ -880,7 +891,8 @@ class BlackStartGrid:
                                                 rest_df = pd.DataFrame(rest_row, columns=rest_col_names)
                                             else:
                                                 if rest_output.loc[rest_output['cranking_power_provided_gen'] ==
-                                                                   str(c_pow.loc[c_pow['bus'] == next_gen, 'gen_name'].tolist()).strip(
+                                                                   str(c_pow.loc[c_pow[
+                                                                                     'bus'] == next_gen, 'gen_name'].tolist()).strip(
                                                                        '[]')].any().any():
                                                     # 如果没有新开的gen
                                                     rest_row = [[
@@ -980,7 +992,7 @@ class BlackStartGrid:
         imp = 0
         for i in range(0, len(path) - 1):
             cur_node = path[i]
-            next_node = path[i+1]
+            next_node = path[i + 1]
             imp = imp + self.graph.weights[(cur_node, next_node)]
         return imp
 
