@@ -80,16 +80,21 @@
 |to_bus|string|线路的终点”to” bus| - | static |
 |length_km|string | 线路的长度 |km| static|
 | max_i_ka| float| 最大发热电流 | kA| static|
-|r_ohm_per_km|float| 线路阻抗|Ω/km|static| 
-|x_ohm_per_km| float|线路感抗|Ω/km|static| 
+|r_ohm_per_km|float| 线路阻抗|Ω/km|static|
+|x_ohm_per_km| float|线路感抗|Ω/km|static|
 |c_nf_per_km|float |线路容抗|nF/km|static|
+|orientation | int | 线路电流方向，如果线路开启1表示从“from”总线去“to” 总线，2则相反， 0表示线路未开启。 | - | dynamic |
+|vm_from_pu| float |在“from”总线处的电压| [p.u]  | dynamic |
+|vm_to_pu| float |在“to”总线处的电压| [p.u]  | dynamic |
 | p_from_mw       | float        | 在“from”总线处流入线路的有功功率 | [MW] | dynamic |
 | q_from_mvar     | float        | 在“from”总线处流入线路的无功功率 | [MVar] | dynamic |
 | p_to_mw         | float        | 在“to”总线处流入线路的有功功率 | [MW] | dynamic |
 | q_to_mvar       | float        | 在“to”总线处流入线路的无功功率 | [MVar] | dynamic |
 | pl_mw           | float        | 在线路上损耗的有功功率         | [MW] | dynamic |
 | ql_mvar         | float        | 线路无功功率消耗  | [MVar] | dynamic |
-| i_from_ka       | float        | 线路起点电流                       | [kA] | dynamic |
+| i_from_ka       | float        | 在“from”总线处流                       | [kA] | dynamic |
+| i_to_ka       | float        | 在“to”总线处电流                       | [kA] | dynamic |
+| i_ka |float| Maximum of i_from_ka and i_to_ka |[kA]|dynamic|
 
 
 
@@ -174,7 +179,7 @@
 |bus| string | load所在bus名称| - | static |
 |priority|int|负载开启优先级|-|staitc|
 | p_steady_mw | float        | 负载完全开启后的有功功率 | [MW] | staitc |
-| p_steady_mw | float        | 负载完全开启后的有功功率 | [MVar] | staitc |
+| q_steady_mw | float        | 负载完全开启后的无功功率 | [MVar] | staitc |
 |is_open| boolean |当前负载是否开启| - | dynamic |
 | p_mw        | float        | 潮流收敛后，负载当前的有功功率 | [MW] | dynamic |
 | q_mvar        | float        | 潮流收敛后，负载当前的有功功率 | [MVar] | dynamic |

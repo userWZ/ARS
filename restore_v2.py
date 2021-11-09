@@ -6,6 +6,8 @@ from collections import defaultdict
 import math
 import random
 import copy as cp
+import json
+from json import JSONEncoder
 
 
 def dijsktra(graph, initial, end):
@@ -117,12 +119,11 @@ class BlackStartGrid:
         self.file = file
         self.has_motor = has_motor
         self.black_start = 0
-        self.net, self.load_priority = self.creat_net()
+        self.net, self.load_priority, self.Res_info = self.creat_net()
         self.motor_info = None if not has_motor else self.creat_motor_load()
         self.graph, self.g, self.gen_load_all_paths = self.get_path_info()
         self.static_data = self.get_static_load_info()
         self.c_pow = self.calculate_gen_cap()
-        self.Res_info = None
         self.result = None
         self.rest_output = None
         self.open_path = []
@@ -131,20 +132,102 @@ class BlackStartGrid:
         self.gen_info = []
 
     class Result:
-        def __init__(self, item_num, net):
+        def __init__(self, item_num, net, priority):
             self.item_num = item_num
+            self.load_priority = priority
+            self.index = self.create_index()
             self.bus_static = self.get_static_info(net, 'bus')
             self.gen_static = self.get_static_info(net, 'gen')
             self.line_static = self.get_static_info(net, 'line')
             self.load_static = self.get_static_info(net, 'load')
+            self.bus_dynamic = []
+            self.gen_dynamic = []
+            self.line_dynamic = []
+            self.load_dynamic = []
 
-        def get_static_info(self, static_info, type):
-            static = static_info + type + self.item_num
+        def add_dynamic_data(self, net, item):
+            data = net['res_' + str(item)]
+            data.index = self.index[item]
+            if item == 'line':
+                orientation = []
+                for index, row in data.iterrows():
+                    if row['vm_from_pu'] and row['vm_to_pu']:
+                        if row['vm_from_pu'] >= row['vm_to_pu']:
+                            orientation.append(1)
+                        else:
+                            orientation.append(2)
+                    else:
+                        orientation.append(0)
+                data['orientation'] = orientation
+                data = data.to_dict(orient='index')
+                self.line_dynamic.append(data)
+                return
+            data = data.to_dict(orient='index')
+            if item == 'bus':
+                self.bus_dynamic.append(data)
+            elif item == 'gen':
+                self.gen_dynamic.append(data)
+            elif item == 'load':
+                self.load_dynamic.append(data)
+
+        def create_index(self):
+            head = dict()
+            head['bus'] = ['bus' + str(i) for i in range(0, self.item_num['bus'])]
+            head['gen'] = ['gen' + str(i) for i in range(0, self.item_num['gen'])]
+            head['line'] = ['line' + str(i) for i in range(0, self.item_num['line'])]
+            head['load'] = ['load' + str(i) for i in range(0, self.item_num['load'])]
+            return head
+
+        def get_static_info(self, net, item):
+            static = None
+            if item == 'bus':
+                static = net.bus[['zone']]
+            elif item == 'load':
+                df1 = net.load[['bus', 'p_mw', 'q_mvar']]
+                df2 = self.load_priority['priority']
+                static = pd.concat([df1, df2], axis=1)
+                static = static.rename(columns={'p_mw': 'p_steady_mw', 'q_mvar': 'q_steady_mw'})
+            elif item == 'gen':
+                static = net.gen[['bus', 'max_q_mvar', 'min_q_mvar']]
+                res = []
+                for index, row in static.iterrows():
+                    if row['bus'] == 0:
+                        res.append(True)
+                    else:
+                        res.append(False)
+                static['is_black_start'] = res
+            elif item == 'line':
+                static = net.line[['from_bus', 'to_bus', 'length_km', 'max_i_ka', 'r_ohm_per_km', 'x_ohm_per_km',
+                                   'c_nf_per_km']]
+            static.index = self.index[item]
+            static = static.to_dict(orient='index')
             return static
 
-        def get_item_res(self, res):
-            #修改json, 并加入动态信息
-            pass
+        def save_json(self, item):
+            json_file = open('result/' + item + '.json', 'w')
+            if item == 'bus':
+                # 先写入静态数据
+                new_data = {'static': self.bus_static, 'dynamic': self.bus_dynamic}
+                json_str = json.dumps(new_data)
+                json_file.write(json_str)
+            elif item == 'load':
+                # 先写入静态数据
+                new_data = {'static': self.load_static, 'dynamic': self.load_dynamic}
+                json_str = json.dumps(new_data)
+                json_file.write(json_str)
+            elif item == 'gen':
+                # 先写入静态数据
+                new_data = {'static': self.gen_static, 'dynamic': self.gen_dynamic}
+                json_str = json.dumps(new_data)
+                json_file.write(json_str)
+            elif item == 'line':
+                # 先写入静态数据
+                new_data = {'static': self.line_static, 'dynamic': self.line_dynamic}
+                json_str = json.dumps(new_data)
+                json_file.write(json_str)
+
+
+
 
     class EdgeGraph:
         """
@@ -233,7 +316,11 @@ class BlackStartGrid:
             exc_bus.sort_values(by=['bus'], inplace=True)
 
             for index, row in exc_bus.iterrows():
-                pp.create_bus(net, vn_kv=row['vn_kv'], name=row['name'], in_service=True)
+                pp.create_bus(net,
+                              vn_kv=row['vn_kv'],
+                              name=row['name'],
+                              zone=row['name_of_bus'],
+                              in_service=True)
             item_num['bus'] = len(exc_bus)
             # Creating External grid
             exc_grid = pd.read_excel(restoration_file, sheet_name='externalgrid')
@@ -351,8 +438,8 @@ class BlackStartGrid:
 
         else:
             net = pn.case_ieee30()
-        self.Res_info = self.Result(item_num, net)
-        return net, load_priority
+
+        return net, load_priority, self.Result(item_num, net, load_priority)
 
     def creat_motor_load(self):
         motors = pd.read_excel(self.file, sheet_name='motorload')
@@ -677,6 +764,11 @@ class BlackStartGrid:
                                 print('发电机全部打开')
                                 pp.runpp(net_copy)
                                 if net_copy.converged:
+                                    # 写入一条潮流计算后的数据
+                                    self.Res_info.add_dynamic_data(net_copy, 'bus')
+                                    self.Res_info.add_dynamic_data(net_copy, 'load')
+                                    self.Res_info.add_dynamic_data(net_copy, 'gen')
+                                    self.Res_info.add_dynamic_data(net_copy, 'line')
                                     # 开启新电机
                                     iteration = iteration + 1
                                     normalvd = calc_vd(net_copy, short_path['path'])
@@ -861,6 +953,11 @@ class BlackStartGrid:
                                         pp.runpp(net_copy)
                                         # 如果开启这个负载后能够潮流收敛， 写入开启时的数据
                                         if net_copy.converged:
+                                            # 写入一条潮流计算后的数据
+                                            self.Res_info.add_dynamic_data(net_copy, 'bus')
+                                            self.Res_info.add_dynamic_data(net_copy, 'load')
+                                            self.Res_info.add_dynamic_data(net_copy, 'gen')
+                                            self.Res_info.add_dynamic_data(net_copy, 'line')
                                             iteration = iteration + 1
                                             rest_row = None
                                             rest_df = None
@@ -981,10 +1078,10 @@ class BlackStartGrid:
         # 开始启动电机
         self.result = self.start_grid(bs_result_sorted, short_path)
         # print(self.open_path)
-        print(self.res_gen)
-        print(self.res_bus)
-        print(self.res_load)
-        print(self.res_line)
+        self.Res_info.save_json('bus')
+        self.Res_info.save_json('load')
+        self.Res_info.save_json('line')
+        self.Res_info.save_json('gen')
         return self.result, abs_path
 
     def get_path_imp(self, path):
