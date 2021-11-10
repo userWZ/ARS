@@ -152,23 +152,34 @@ class BlackStartGrid:
                 orientation = []
                 for index, row in data.iterrows():
                     if row['vm_from_pu'] and row['vm_to_pu']:
+
                         if row['vm_from_pu'] >= row['vm_to_pu']:
                             orientation.append(1)
                         else:
                             orientation.append(2)
                     else:
+
                         orientation.append(0)
                 data['orientation'] = orientation
                 data = data.to_dict(orient='index')
                 self.line_dynamic.append(data)
                 return
-            data = data.to_dict(orient='index')
             if item == 'bus':
+                data = data.to_dict(orient='index')
                 self.bus_dynamic.append(data)
-            elif item == 'gen':
-                self.gen_dynamic.append(data)
-            elif item == 'load':
-                self.load_dynamic.append(data)
+            elif item == 'gen' or item == 'load':
+                is_open = []
+                for index, row in data.iterrows():
+                    if row['p_mw']:
+                        is_open.append(True)
+                    else:
+                        is_open.append(False)
+                data['is_open'] = is_open
+                data = data.to_dict(orient='index')
+                if item == 'gen':
+                    self.gen_dynamic.append(data)
+                elif item == 'load':
+                    self.load_dynamic.append(data)
 
         def create_index(self):
             head = dict()
